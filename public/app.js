@@ -149,18 +149,6 @@ function render(data) {
         ${proc.openFiles.slice(0, 5).map(f => `<div class="open-file">${escapeHtml(f)}</div>`).join("")}
         ${proc.openFiles.length > 5 ? `<div class="open-file open-file-more">+${proc.openFiles.length - 5} more</div>` : ""}
       </div>` : ""}
-      ${proc.containers && proc.containers.length > 0 ? (() => {
-        const running = proc.containers.filter(c => c.state === "running");
-        const stopped = proc.containers.filter(c => c.state !== "running");
-        return `
-      <div class="card-containers">
-        <div class="containers-header">🐳 Containers <span class="containers-count">${proc.containers.length}</span></div>
-        <div class="container-badges">
-          ${running.map(c => `<span class="container-badge container-badge-running">${escapeHtml(c.service)}</span>`).join("")}
-          ${stopped.map(c => `<span class="container-badge container-badge-stopped">${escapeHtml(c.service)}</span>`).join("")}
-        </div>
-      </div>`;
-      })() : ""}
       <div class="card-footer">
         <button class="stats-toggle" aria-label="toggle stats">···</button>
       </div>
@@ -170,6 +158,11 @@ function render(data) {
         <div class="meta-item">MEM: <span>${proc.memPercent.toFixed(1)}%</span></div>
         <div class="meta-item">Uptime: <span>${formatElapsed(proc.elapsedSeconds)}</span></div>
         <div class="meta-item">STAT: <span>${escapeHtml(proc.stat)}</span></div>
+        ${proc.containers && proc.containers.length > 0 ? (() => {
+          const running = proc.containers.filter(c => c.state === "running");
+          const stopped = proc.containers.filter(c => c.state !== "running");
+          return `<div class="meta-item meta-containers">🐳 <span>${[...running.map(c => escapeHtml(c.service)), ...stopped.map(c => `<span class="container-stopped">${escapeHtml(c.service)}</span>`)].join(" ")}</span></div>`;
+        })() : ""}
       </div>
     </div>
   `;
