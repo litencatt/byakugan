@@ -18,6 +18,28 @@ function connect() {
   };
 }
 
+function formatTimeUntil(isoString) {
+  if (!isoString) return null;
+  const diffMs = new Date(isoString).getTime() - Date.now();
+  if (diffMs <= 0) return "now";
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 60) return `${diffMins}m`;
+  const h = Math.floor(diffMins / 60);
+  const m = diffMins % 60;
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    const rh = h % 24;
+    return rh > 0 ? `${d}d${rh}h` : `${d}d`;
+  }
+  return m > 0 ? `${h}h${m}m` : `${h}h`;
+}
+
+function formatTokens(n) {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
+  return String(n);
+}
+
 function formatElapsed(seconds) {
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
@@ -44,6 +66,26 @@ function render(data) {
   const d = new Date(data.collectedAt);
   document.getElementById("last-updated").textContent =
     `Updated ${d.toLocaleTimeString()}`;
+
+  const usageEl = document.getElementById("usage-stats");
+  if (usageEl && data.usage) {
+    const u = data.usage;
+    const parts = [];
+    if (u.totalInputTokens > 0 || u.totalOutputTokens > 0) {
+      parts.push(`<span class="usage-tokens">↑${formatTokens(u.totalInputTokens)} ↓${formatTokens(u.totalOutputTokens)}</span>`);
+    }
+    if (u.fiveHourPercent !== null) {
+      const t = formatTimeUntil(u.fiveHourResetsAt);
+      const cls = u.fiveHourPercent >= 90 ? "usage-critical" : u.fiveHourPercent >= 70 ? "usage-warning" : "usage-ok";
+      parts.push(`<span class="usage-limit ${cls}">5h:${u.fiveHourPercent}%${t ? `(${t})` : ""}</span>`);
+    }
+    if (u.weeklyPercent !== null) {
+      const t = formatTimeUntil(u.weeklyResetsAt);
+      const cls = u.weeklyPercent >= 90 ? "usage-critical" : u.weeklyPercent >= 70 ? "usage-warning" : "usage-ok";
+      parts.push(`<span class="usage-limit ${cls}">wk:${u.weeklyPercent}%${t ? `(${t})` : ""}</span>`);
+    }
+    usageEl.innerHTML = parts.join("");
+  }
 
   const grid = document.getElementById("process-grid");
 

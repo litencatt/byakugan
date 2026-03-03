@@ -70,10 +70,18 @@ h1 {
   letter-spacing: -0.3px;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .header-stats {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .badge {
@@ -104,6 +112,39 @@ h1 {
   font-size: 10px;
   color: var(--text-muted);
   opacity: 0.4;
+}
+
+.usage-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.usage-tokens {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.usage-limit {
+  font-size: 12px;
+  font-family: monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.usage-ok {
+  color: var(--text-muted);
+}
+
+.usage-warning {
+  color: #d29922;
+  background: color-mix(in srgb, #d29922 12%, transparent);
+}
+
+.usage-critical {
+  color: #f85149;
+  background: color-mix(in srgb, #f85149 12%, transparent);
 }
 
 main {

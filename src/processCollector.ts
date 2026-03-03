@@ -3,7 +3,7 @@ import { promisify } from "util";
 import { access, readdir, readFile, stat } from "fs/promises";
 import path from "path";
 import os from "os";
-import { ClaudeProcess, DashboardData, DockerContainer, EditorWindow } from "./types.js";
+import { ClaudeProcess, DashboardData, DockerContainer, EditorWindow, UsageData } from "./types.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -41,14 +41,14 @@ export function parseStorageFolders(
   return results;
 }
 
-async function readSessionData(projectDir: string): Promise<{ currentTask: string | null; modelName: string | null }> {
+async function readSessionData(projectDir: string): Promise<{ currentTask: string | null; modelName: string | null; inputTokens: number; outputTokens: number }> {
   try {
     const encoded = encodeProjectDir(projectDir);
     const claudeProjectsDir = path.join(os.homedir(), ".claude", "projects", encoded);
 
     const files = await readdir(claudeProjectsDir);
     const jsonlFiles = files.filter(f => f.endsWith(".jsonl"));
-    if (jsonlFiles.length === 0) return { currentTask: null, modelName: null };
+    if (jsonlFiles.length === 0) return { currentTask: null, modelName: null, inputTokens: 0, outputTokens: 0 };
 
     // Find most recently modified JSONL file
     const stats = await Promise.all(
@@ -62,8 +62,24 @@ async function readSessionData(projectDir: string): Promise<{ currentTask: strin
 
     let currentTask: string | null = null;
     let modelName: string | null = null;
+    let inputTokens = 0;
+    let outputTokens = 0;
 
-    // Scan from end to find last user text message and model name
+    // First pass: scan all lines to accumulate tokens
+    for (let i = 0; i < lines.length; i++) {
+      try {
+        const entry = JSON.parse(lines[i]);
+
+        if (entry.type === "assistant" && entry.message?.usage) {
+          inputTokens += entry.message.usage.input_tokens ?? 0;
+          outputTokens += entry.message.usage.output_tokens ?? 0;
+        }
+      } catch {
+        // skip malformed lines
+      }
+    }
+
+    // Second pass: scan from end to find last user text message and model name
     for (let i = lines.length - 1; i >= 0; i--) {
       try {
         const entry = JSON.parse(lines[i]);
@@ -93,13 +109,36 @@ async function readSessionData(projectDir: string): Promise<{ currentTask: strin
         // skip malformed lines
       }
     }
-    return { currentTask, modelName };
+    return { currentTask, modelName, inputTokens, outputTokens };
   } catch {
-    return { currentTask: null, modelName: null };
+    return { currentTask: null, modelName: null, inputTokens: 0, outputTokens: 0 };
   }
 }
 
-async function enrichProcess(pid: number): Promise<Partial<ClaudeProcess>> {
+async function collectRateLimitUsage(): Promise<{
+  fiveHourPercent: number | null;
+  weeklyPercent: number | null;
+  fiveHourResetsAt: string | null;
+  weeklyResetsAt: string | null;
+}> {
+  try {
+    const usageCachePath = path.join(os.homedir(), ".claude/plugins/oh-my-claudecode/.usage-cache.json");
+    const content = await readFile(usageCachePath, "utf-8");
+    const cache = JSON.parse(content);
+    if (cache.error || !cache.data) return { fiveHourPercent: null, weeklyPercent: null, fiveHourResetsAt: null, weeklyResetsAt: null };
+    const { fiveHourPercent, weeklyPercent, fiveHourResetsAt, weeklyResetsAt } = cache.data;
+    return {
+      fiveHourPercent: fiveHourPercent ?? null,
+      weeklyPercent: weeklyPercent ?? null,
+      fiveHourResetsAt: fiveHourResetsAt ?? null,
+      weeklyResetsAt: weeklyResetsAt ?? null,
+    };
+  } catch {
+    return { fiveHourPercent: null, weeklyPercent: null, fiveHourResetsAt: null, weeklyResetsAt: null };
+  }
+}
+
+async function enrichProcess(pid: number): Promise<Partial<ClaudeProcess> & { inputTokens: number; outputTokens: number }> {
   try {
     const { stdout } = await execFileAsync("lsof", ["-p", String(pid)], { maxBuffer: 10 * 1024 * 1024 });
     const lines = stdout.split("\n");
@@ -108,7 +147,7 @@ async function enrichProcess(pid: number): Promise<Partial<ClaudeProcess>> {
     const projectDir = cwdLine?.trim().split(/\s+/).pop() ?? null;
 
     if (!projectDir) {
-      return { projectDir: "", openFiles: [], currentTask: null };
+      return { projectDir: "", openFiles: [], currentTask: null, inputTokens: 0, outputTokens: 0 };
     }
 
     const openFiles = lines
@@ -122,7 +161,7 @@ async function enrichProcess(pid: number): Promise<Partial<ClaudeProcess>> {
       .map(p => p.replace(projectDir + "/", ""))
       .filter((v, i, a) => a.indexOf(v) === i);
 
-    const [{ currentTask: sessionTask, modelName }, containers] = await Promise.all([
+    const [{ currentTask: sessionTask, modelName, inputTokens, outputTokens }, containers] = await Promise.all([
       readSessionData(projectDir),
       collectDockerContainers(projectDir),
     ]);
@@ -154,9 +193,9 @@ async function enrichProcess(pid: number): Promise<Partial<ClaudeProcess>> {
       }
     } catch { /* not a git repo or git not available */ }
 
-    return { projectDir, openFiles, currentTask, gitBranch, gitCommonDir, modelName, prUrl, containers };
+    return { projectDir, openFiles, currentTask, gitBranch, gitCommonDir, modelName, prUrl, containers, inputTokens, outputTokens };
   } catch {
-    return { projectDir: "", openFiles: [], currentTask: null };
+    return { projectDir: "", openFiles: [], currentTask: null, inputTokens: 0, outputTokens: 0 };
   }
 }
 
@@ -293,38 +332,49 @@ export async function collectProcesses(): Promise<DashboardData> {
     }
   }
 
-  const enriched = await Promise.all(
-    claudeProcesses.map(async (proc) => {
-      const extra = await enrichProcess(proc.pid);
-      const projectDir = extra.projectDir ?? "";
-      const projectName = projectDir ? projectDir.split("/").pop() ?? projectDir : String(proc.pid);
+  const [enrichedWithTokens, rateLimitUsage] = await Promise.all([
+    Promise.all(
+      claudeProcesses.map(async (proc) => {
+        const extra = await enrichProcess(proc.pid);
+        const projectDir = extra.projectDir ?? "";
+        const projectName = projectDir ? projectDir.split("/").pop() ?? projectDir : String(proc.pid);
 
-      const isMcpBridge = MCP_BRIDGE_PATHS.some(p => projectDir.includes(p));
-      const cpuPercent = proc.cpuPercent;
-      const status: "working" | "idle" = cpuPercent > 5 ? "working" : "idle";
+        const isMcpBridge = MCP_BRIDGE_PATHS.some(p => projectDir.includes(p));
+        const cpuPercent = proc.cpuPercent;
+        const status: "working" | "idle" = cpuPercent > 5 ? "working" : "idle";
 
-      return {
-        pid: proc.pid,
-        projectName,
-        projectDir,
-        cpuPercent,
-        memPercent: proc.memPercent,
-        status,
-        stat: proc.stat,
-        elapsedTime: proc.elapsedTime,
-        elapsedSeconds: parseElapsedSeconds(proc.elapsedTime),
-        currentTask: extra.currentTask ?? null,
-        openFiles: extra.openFiles ?? [],
-        gitBranch: extra.gitBranch ?? null,
-        gitCommonDir: extra.gitCommonDir ?? null,
-        modelName: extra.modelName ?? null,
-        prUrl: extra.prUrl ?? null,
-        editorApp: null,
-        isMcpBridge,
-        containers: extra.containers ?? [],
-      } satisfies ClaudeProcess;
-    })
-  );
+        return {
+          process: {
+            pid: proc.pid,
+            projectName,
+            projectDir,
+            cpuPercent,
+            memPercent: proc.memPercent,
+            status,
+            stat: proc.stat,
+            elapsedTime: proc.elapsedTime,
+            elapsedSeconds: parseElapsedSeconds(proc.elapsedTime),
+            currentTask: extra.currentTask ?? null,
+            openFiles: extra.openFiles ?? [],
+            gitBranch: extra.gitBranch ?? null,
+            gitCommonDir: extra.gitCommonDir ?? null,
+            modelName: extra.modelName ?? null,
+            prUrl: extra.prUrl ?? null,
+            editorApp: null,
+            isMcpBridge,
+            containers: extra.containers ?? [],
+          } satisfies ClaudeProcess,
+          inputTokens: extra.inputTokens,
+          outputTokens: extra.outputTokens,
+        };
+      })
+    ),
+    collectRateLimitUsage(),
+  ]);
+
+  const enriched = enrichedWithTokens.map(e => e.process);
+  const totalInputTokens = enrichedWithTokens.reduce((sum, e) => sum + e.inputTokens, 0);
+  const totalOutputTokens = enrichedWithTokens.reduce((sum, e) => sum + e.outputTokens, 0);
 
   const nonBridge = enriched.filter(p => !p.isMcpBridge);
 
@@ -349,11 +399,18 @@ export async function collectProcesses(): Promise<DashboardData> {
     return true;
   });
 
+  const usage: UsageData = {
+    totalInputTokens,
+    totalOutputTokens,
+    ...rateLimitUsage,
+  };
+
   return {
     processes: visible,
     editorWindows,
     collectedAt: new Date().toISOString(),
     totalWorking,
     totalIdle,
+    usage,
   };
 }
