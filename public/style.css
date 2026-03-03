@@ -233,10 +233,7 @@ main {
   font-weight: 600;
   font-family: monospace;
   color: var(--accent);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
+  word-break: break-word;
 }
 
 .project-dir {
