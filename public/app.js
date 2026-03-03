@@ -140,7 +140,7 @@ function render(data) {
       </div>
       <div class="project-dir">${escapeHtml(shortenPath(proc.projectDir))}</div>
       <div class="card-tags">
-        ${proc.gitBranch ? `<div class="git-branch">⎇ ${escapeHtml(proc.gitBranch)}</div>` : ""}
+        ${proc.gitBranch ? `<div class="git-branch"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(proc.gitBranch)}</div>` : ""}
         ${proc.modelName ? `<div class="model-name">${escapeHtml(proc.modelName.replace("claude-", ""))}</div>` : ""}
       </div>
       ${proc.currentTask ? `<div class="current-task">${escapeHtml(proc.currentTask)}</div>` : ""}
