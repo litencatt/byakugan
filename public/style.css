@@ -399,17 +399,13 @@ main {
 
 .repo-group {
   grid-column: 1 / -1;
-  background: color-mix(in srgb, var(--text-muted) 5%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px 14px;
 }
 
 .repo-group-header {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding-left: 2px;
 }
 
