@@ -1,6 +1,6 @@
 {
   "name": "claudes-watch",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Monitor Claude Code processes and focus VSCode windows",
   "license": "MIT",
   "repository": {
