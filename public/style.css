@@ -68,6 +68,7 @@ h1 {
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.3px;
+  line-height: 1;
 }
 
 .header-right {
@@ -130,28 +131,22 @@ h1 {
   font-size: 13px;
   font-weight: 600;
   font-family: monospace;
-  padding: 3px 8px;
-  border-radius: 5px;
 }
 
 .usage-5h {
   color: #58a6ff;
-  background: color-mix(in srgb, #58a6ff 12%, transparent);
 }
 
 .usage-wk {
   color: #a78bfa;
-  background: color-mix(in srgb, #a78bfa 12%, transparent);
 }
 
 .usage-warning {
   color: #d29922 !important;
-  background: color-mix(in srgb, #d29922 12%, transparent) !important;
 }
 
 .usage-critical {
   color: #f85149 !important;
-  background: color-mix(in srgb, #f85149 12%, transparent) !important;
 }
 
 main {
@@ -214,6 +209,24 @@ main {
   flex-shrink: 0;
 }
 
+.card-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.project-repo-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .project-name-row {
   display: flex;
   align-items: center;
@@ -233,11 +246,12 @@ main {
 }
 
 .project-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   font-family: monospace;
   color: var(--accent);
   word-break: break-word;
+  min-width: 0;
 }
 
 .project-dir {
@@ -312,8 +326,6 @@ main {
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
 }
 
 .card-meta.open {
@@ -407,6 +419,12 @@ main {
   color: var(--text-muted);
   margin-bottom: 8px;
   padding-left: 2px;
+}
+
+.editor-only-header {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .repo-group-cards {
