@@ -169,15 +169,17 @@ function render(data) {
   `;
 
   const singles = groups.filter(g => g.procs.length === 1);
-  const multiGroups = groups.filter(g => g.procs.length > 1);
+  const multiGroups = groups
+    .filter(g => g.procs.length > 1)
+    .sort((a, b) => b.procs.length - a.procs.length);
 
   const claudeHtml = [
-    ...singles.map(({ procs }) => cardHtml(procs[0])),
     ...multiGroups.map(({ repoName, procs }) => `
       <div class="repo-group">
         <div class="repo-group-header">${escapeHtml(repoName)}</div>
         <div class="repo-group-cards">${procs.map(cardHtml).join("")}</div>
       </div>`),
+    ...singles.map(({ procs }) => cardHtml(procs[0])),
   ].join("");
 
   const editorOnlyHtml = (data.editorWindows && data.editorWindows.length > 0)
