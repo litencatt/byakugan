@@ -60,7 +60,10 @@ function render(data) {
     <div class="card ${proc.status}" data-pid="${proc.pid}" role="button" tabindex="0">
       <div class="card-header">
         <div class="project-name">${escapeHtml(proc.projectName)}</div>
-        <div class="status-badge ${proc.status}">${proc.status}</div>
+        <div class="card-header-badges">
+          ${proc.editorApp ? `<div class="editor-badge ${proc.editorApp}">${proc.editorApp === "vscode" ? "VSCode" : "Cursor"}</div>` : ""}
+          <div class="status-badge ${proc.status}">${proc.status}</div>
+        </div>
       </div>
       <div class="project-dir">${escapeHtml(shortenPath(proc.projectDir))}</div>
       <div class="card-tags">
@@ -83,6 +86,35 @@ function render(data) {
     </div>
   `).join("");
 
+  // Editor windows without Claude
+  const editorGrid = document.getElementById("editor-grid");
+  if (editorGrid) {
+    if (data.editorWindows && data.editorWindows.length > 0) {
+      const sortedEditors = [...data.editorWindows].sort((a, b) =>
+        (a.projectName ?? "").localeCompare(b.projectName ?? "")
+      );
+      editorGrid.innerHTML = sortedEditors.map(w => `
+        <div class="card editor-card" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" role="button" tabindex="0">
+          <div class="card-header">
+            <div class="project-name">${escapeHtml(w.projectName)}</div>
+            <div class="editor-badge ${w.app}">${w.app === "vscode" ? "VSCode" : "Cursor"}</div>
+          </div>
+          <div class="project-dir">${escapeHtml(shortenPath(w.projectDir))}</div>
+        </div>
+      `).join("");
+      editorGrid.querySelectorAll(".editor-card").forEach(card => {
+        const dir = card.dataset.dir;
+        const app = card.dataset.app;
+        card.addEventListener("click", () => focusEditorWindow(dir, app, card));
+        card.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") focusEditorWindow(dir, app, card);
+        });
+      });
+    } else {
+      editorGrid.innerHTML = "";
+    }
+  }
+
   grid.querySelectorAll(".card").forEach(card => {
     const pid = parseInt(card.dataset.pid);
     card.addEventListener("click", () => focusWindow(pid, card));
@@ -98,6 +130,22 @@ function escapeHtml(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function focusEditorWindow(dir, app, cardEl) {
+  if (cardEl) {
+    cardEl.style.opacity = "0.5";
+    cardEl.style.transform = "scale(0.98)";
+    setTimeout(() => {
+      cardEl.style.opacity = "";
+      cardEl.style.transform = "";
+    }, 300);
+  }
+  fetch("/api/focus-editor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectDir: dir, app }),
+  }).catch(() => {});
 }
 
 function focusWindow(pid, cardEl) {

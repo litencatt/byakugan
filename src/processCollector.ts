@@ -3,7 +3,7 @@ import { promisify } from "util";
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
 import os from "os";
-import { ClaudeProcess, DashboardData } from "./types.js";
+import { ClaudeProcess, DashboardData, EditorWindow } from "./types.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -39,7 +39,7 @@ async function readSessionData(projectDir: string): Promise<{ currentTask: strin
       try {
         const entry = JSON.parse(lines[i]);
 
-        if (!modelName && entry.type === "assistant" && entry.message?.model) {
+        if (!modelName && entry.message?.model) {
           modelName = entry.message.model;
         }
 
@@ -125,6 +125,69 @@ async function enrichProcess(pid: number): Promise<Partial<ClaudeProcess>> {
   }
 }
 
+const EDITOR_WORKSPACE_DIRS: Array<{ app: EditorWindow["app"]; workspaceStorageDir: string; processPattern: RegExp }> = [
+  {
+    app: "vscode",
+    workspaceStorageDir: path.join(os.homedir(), "Library/Application Support/Code/User/workspaceStorage"),
+    processPattern: /Visual Studio Code/,
+  },
+  {
+    app: "cursor",
+    workspaceStorageDir: path.join(os.homedir(), "Library/Application Support/Cursor/User/workspaceStorage"),
+    processPattern: /[Cc]ursor/,
+  },
+];
+
+// Window is considered "open" if workspace.json was modified within this duration
+const EDITOR_WINDOW_OPEN_MS = 30 * 60 * 60 * 1000; // 30 hours
+
+async function isEditorRunning(pattern: RegExp): Promise<boolean> {
+  try {
+    const { stdout } = await execFileAsync("ps", ["-eo", "command"]);
+    return stdout.split("\n").some(line => pattern.test(line));
+  } catch {
+    return false;
+  }
+}
+
+async function collectEditorWindows(): Promise<EditorWindow[]> {
+  const results: EditorWindow[] = [];
+  const now = Date.now();
+
+  for (const { app, workspaceStorageDir, processPattern } of EDITOR_WORKSPACE_DIRS) {
+    if (!await isEditorRunning(processPattern)) continue;
+
+    let hashDirs: string[];
+    try {
+      hashDirs = await readdir(workspaceStorageDir);
+    } catch {
+      continue;
+    }
+
+    for (const hashDir of hashDirs) {
+      const workspaceJsonPath = path.join(workspaceStorageDir, hashDir, "workspace.json");
+      try {
+        const fileStat = await stat(workspaceJsonPath);
+        if (now - fileStat.mtime.getTime() > EDITOR_WINDOW_OPEN_MS) continue;
+
+        const content = await readFile(workspaceJsonPath, "utf-8");
+        const { folder } = JSON.parse(content) as { folder?: string };
+        if (!folder?.startsWith("file://")) continue;
+
+        const projectDir = decodeURIComponent(folder.replace("file://", ""));
+        if (!projectDir) continue;
+
+        const projectName = projectDir.split("/").pop() ?? projectDir;
+        results.push({ app, projectDir, projectName });
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return results;
+}
+
 const MCP_BRIDGE_PATHS = ["/mcp", "mcp-server", "mcp_server", ".mcp"];
 
 export async function collectProcesses(): Promise<DashboardData> {
@@ -185,18 +248,38 @@ export async function collectProcesses(): Promise<DashboardData> {
         openFiles: extra.openFiles ?? [],
         gitBranch: extra.gitBranch ?? null,
         modelName: extra.modelName ?? null,
+        editorApp: null,
         isMcpBridge,
       } satisfies ClaudeProcess;
     })
   );
 
-  const visible = enriched.filter(p => !p.isMcpBridge);
+  const nonBridge = enriched.filter(p => !p.isMcpBridge);
+
+  const allEditorWindows = await collectEditorWindows();
+  const editorDirMap = new Map(allEditorWindows.map(w => [w.projectDir, w.app]));
+
+  const visible = nonBridge.map(p => ({
+    ...p,
+    editorApp: editorDirMap.get(p.projectDir) ?? null,
+  }));
 
   const totalWorking = visible.filter(p => p.status === "working").length;
   const totalIdle = visible.filter(p => p.status === "idle").length;
 
+  // Editor windows without a Claude process
+  const claudeDirs = new Set(visible.map(p => p.projectDir));
+  const seenEditorDirs = new Set<string>();
+  const editorWindows = allEditorWindows.filter(w => {
+    if (claudeDirs.has(w.projectDir)) return false;
+    if (seenEditorDirs.has(w.projectDir)) return false;
+    seenEditorDirs.add(w.projectDir);
+    return true;
+  });
+
   return {
     processes: visible,
+    editorWindows,
     collectedAt: new Date().toISOString(),
     totalWorking,
     totalIdle,
