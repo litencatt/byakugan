@@ -88,7 +88,7 @@ function render(data) {
       const t = formatTimeUntil(u.fiveHourResetsAt);
       const jst = formatJST(u.fiveHourResetsAt);
       const cls = u.fiveHourPercent >= 90 ? "usage-critical" : u.fiveHourPercent >= 70 ? "usage-warning" : "";
-      parts.push(`<span class="usage-limit usage-5h ${cls}">5h:${u.fiveHourPercent}%${t ? ` (${t}` : ""}${jst ? ` 🕐${jst}` : ""}${t ? `)` : ""}</span>`);
+      parts.push(`<span class="usage-limit usage-5h ${cls}">5h:${u.fiveHourPercent}%${t ? ` (${t}` : ""}${jst ? ` reset:${jst}` : ""}${t ? `)` : ""}</span>`);
     }
     if (u.weeklyPercent !== null) {
       const t = formatTimeUntil(u.weeklyResetsAt);
