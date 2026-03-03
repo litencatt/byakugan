@@ -104,10 +104,10 @@ function render(data) {
           </div>`).join("")}
       </div>` : ""}
       <div class="card-footer">
-        <span class="pid">PID ${proc.pid}</span>
         <button class="stats-toggle" aria-label="toggle stats">···</button>
       </div>
       <div class="card-meta">
+        <div class="meta-item">PID: <span>${proc.pid}</span></div>
         <div class="meta-item">CPU: <span>${proc.cpuPercent.toFixed(1)}%</span></div>
         <div class="meta-item">MEM: <span>${proc.memPercent.toFixed(1)}%</span></div>
         <div class="meta-item">Uptime: <span>${formatElapsed(proc.elapsedSeconds)}</span></div>
