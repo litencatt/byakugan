@@ -47,6 +47,11 @@ function render(data) {
 
   const grid = document.getElementById("process-grid");
 
+  // 再レンダリング前にstats展開中のPIDを保存
+  const openStatsPids = new Set(
+    [...grid.querySelectorAll(".card-meta.open")].map(el => el.closest("[data-pid]")?.dataset.pid)
+  );
+
   if (data.processes.length === 0) {
     grid.innerHTML = '<div class="empty-state">No Claude processes found</div>';
     return;
@@ -131,6 +136,10 @@ function render(data) {
 
   grid.querySelectorAll(".card[data-pid]").forEach(card => {
     const pid = parseInt(card.dataset.pid);
+    // 展開状態を復元
+    if (openStatsPids.has(String(pid))) {
+      card.querySelector(".card-meta")?.classList.add("open");
+    }
     card.addEventListener("click", () => focusWindow(pid, card));
     card.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") focusWindow(pid, card);
