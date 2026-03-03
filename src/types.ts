@@ -32,10 +32,20 @@ export interface EditorWindow {
   projectName: string;
 }
 
+export interface UsageData {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  fiveHourPercent: number | null;
+  weeklyPercent: number | null;
+  fiveHourResetsAt: string | null;
+  weeklyResetsAt: string | null;
+}
+
 export interface DashboardData {
   processes: ClaudeProcess[];
   editorWindows: EditorWindow[];
   collectedAt: string;
   totalWorking: number;
   totalIdle: number;
+  usage: UsageData;
 }
