@@ -88,7 +88,7 @@ function render(data) {
       const t = formatTimeUntil(u.fiveHourResetsAt);
       const jst = formatJST(u.fiveHourResetsAt);
       const cls = u.fiveHourPercent >= 90 ? "usage-critical" : u.fiveHourPercent >= 70 ? "usage-warning" : "";
-      parts.push(`<span class="usage-limit usage-5h ${cls}">5h:${u.fiveHourPercent}%${t ? ` (${t}` : ""}${jst ? ` 🕐${jst}` : ""}${t ? `)` : ""}</span>`);
+      parts.push(`<span class="usage-limit usage-5h ${cls}">5h:${u.fiveHourPercent}%${t ? ` (${t})` : ""}${jst ? `[reset:${jst}]` : ""}</span>`);
     }
     if (u.weeklyPercent !== null) {
       const t = formatTimeUntil(u.weeklyResetsAt);
@@ -128,17 +128,19 @@ function render(data) {
   const cardHtml = (proc) => `
     <div class="card ${proc.status}" data-pid="${proc.pid}" role="button" tabindex="0">
       <div class="card-header">
-        <div class="project-name-row">
-          ${proc.gitBranch ? `<img src="git-branch.svg" class="git-branch-icon" alt="branch">` : ""}
-          <div class="project-name">${escapeHtml(proc.gitBranch ?? proc.projectName)}</div>
+        <div class="card-header-left">
+          <div class="project-repo-name">${escapeHtml(proc.projectName)}</div>
+          <div class="project-name-row">
+            ${proc.gitBranch ? `<img src="git-branch.svg" class="git-branch-icon" alt="branch">` : ""}
+            <div class="project-name">${escapeHtml(proc.gitBranch ?? proc.projectName)}</div>
+          </div>
         </div>
         <div class="card-header-icons">
           ${proc.editorApp ? `<div class="editor-badge ${proc.editorApp}"><img src="${proc.editorApp}.svg" class="editor-icon" alt="${proc.editorApp}"></div>` : ""}
           <img src="claude.svg" class="claude-icon" alt="Claude">
         </div>
       </div>
-      ${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR:${escapeHtml(proc.prUrl.split("/").pop() ?? "")}</a>` : ""}
-      <div class="project-dir">${escapeHtml(shortenPath(proc.projectDir))}</div>
+      ${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR:${escapeHtml(proc.prUrl.split("/").pop() ?? "")}</a>` : `<div class="project-dir">${escapeHtml(shortenPath(proc.projectDir))}</div>`}
       ${proc.modelName ? `<div class="card-tags"><div class="model-name">${escapeHtml(proc.modelName.replace("claude-", ""))}</div></div>` : ""}
       ${proc.currentTask ? `<div class="current-task">${escapeHtml(proc.currentTask)}</div>` : ""}
       ${proc.openFiles && proc.openFiles.length > 0 ? `
@@ -168,30 +170,39 @@ function render(data) {
     </div>
   `;
 
-  const claudeHtml = groups.map(({ repoName, procs }) => {
-    const isGroup = procs.length > 1;
-    if (isGroup) {
-      return `
-        <div class="repo-group">
-          <div class="repo-group-header">${escapeHtml(repoName)}</div>
-          <div class="repo-group-cards">${procs.map(cardHtml).join("")}</div>
-        </div>`;
-    }
-    return cardHtml(procs[0]);
-  }).join("");
+  const singles = groups.filter(g => g.procs.length === 1);
+  const multiGroups = groups
+    .filter(g => g.procs.length > 1)
+    .sort((a, b) => b.procs.length - a.procs.length);
+
+  const claudeHtml = [
+    ...multiGroups.map(({ repoName, procs }) => `
+      <div class="repo-group">
+        <div class="repo-group-header">${escapeHtml(repoName)}</div>
+        <div class="repo-group-cards">${procs.map(cardHtml).join("")}</div>
+      </div>`),
+    ...singles.map(({ procs }) => cardHtml(procs[0])),
+  ].join("");
 
   const editorOnlyHtml = (data.editorWindows && data.editorWindows.length > 0)
-    ? [...data.editorWindows]
-        .sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? ""))
-        .map(w => `
-          <div class="card editor-card" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" role="button" tabindex="0">
-            <div class="card-header">
-              <div class="project-name">${escapeHtml(w.projectName)}</div>
-              <div class="editor-badge ${w.app}"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"></div>
-            </div>
-            <div class="project-dir">${escapeHtml(shortenPath(w.projectDir))}</div>
-          </div>
-        `).join("")
+    ? `<div class="repo-group">
+        <div class="repo-group-header editor-only-header">最近開いたプロジェクト</div>
+        <div class="repo-group-cards">
+          ${[...data.editorWindows]
+            .sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? ""))
+            .map(w => `
+              <div class="card editor-card" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" role="button" tabindex="0">
+                <div class="card-header">
+                  <div class="project-name">${escapeHtml(w.projectName)}</div>
+                  <div class="card-header-icons">
+                    <div class="editor-badge ${w.app}"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"></div>
+                  </div>
+                </div>
+                <div class="project-dir">${escapeHtml(shortenPath(w.projectDir))}</div>
+              </div>
+            `).join("")}
+        </div>
+      </div>`
     : "";
 
   grid.innerHTML = claudeHtml + editorOnlyHtml;
