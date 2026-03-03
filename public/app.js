@@ -47,6 +47,11 @@ function render(data) {
 
   const grid = document.getElementById("process-grid");
 
+  // 再レンダリング前にstats展開中のPIDを保存
+  const openStatsPids = new Set(
+    [...grid.querySelectorAll(".card-meta.open")].map(el => el.closest("[data-pid]")?.dataset.pid)
+  );
+
   if (data.processes.length === 0) {
     grid.innerHTML = '<div class="empty-state">No Claude processes found</div>';
     return;
@@ -79,14 +84,8 @@ function render(data) {
       </div>
       <div class="project-dir">${escapeHtml(shortenPath(proc.projectDir))}</div>
       <div class="card-tags">
-        ${proc.gitBranch ? `<div class="git-branch">⎇ ${escapeHtml(proc.gitBranch)}</div>` : ""}
+        ${proc.gitBranch ? `<div class="git-branch">${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR</a>` : ""}⎇ ${escapeHtml(proc.gitBranch)}</div>` : ""}
         ${proc.modelName ? `<div class="model-name">${escapeHtml(proc.modelName.replace("claude-", ""))}</div>` : ""}
-      </div>
-      <div class="card-meta">
-        <div class="meta-item">CPU: <span>${proc.cpuPercent.toFixed(1)}%</span></div>
-        <div class="meta-item">MEM: <span>${proc.memPercent.toFixed(1)}%</span></div>
-        <div class="meta-item">Uptime: <span>${formatElapsed(proc.elapsedSeconds)}</span></div>
-        <div class="meta-item">STAT: <span>${escapeHtml(proc.stat)}</span></div>
       </div>
       ${proc.currentTask ? `<div class="current-task">${escapeHtml(proc.currentTask)}</div>` : ""}
       ${proc.openFiles && proc.openFiles.length > 0 ? `
@@ -94,7 +93,16 @@ function render(data) {
         ${proc.openFiles.slice(0, 5).map(f => `<div class="open-file">${escapeHtml(f)}</div>`).join("")}
         ${proc.openFiles.length > 5 ? `<div class="open-file open-file-more">+${proc.openFiles.length - 5} more</div>` : ""}
       </div>` : ""}
-      <div class="pid">PID ${proc.pid}</div>
+      <div class="card-footer">
+        <span class="pid">PID ${proc.pid}</span>
+        <button class="stats-toggle" aria-label="toggle stats">···</button>
+      </div>
+      <div class="card-meta">
+        <div class="meta-item">CPU: <span>${proc.cpuPercent.toFixed(1)}%</span></div>
+        <div class="meta-item">MEM: <span>${proc.memPercent.toFixed(1)}%</span></div>
+        <div class="meta-item">Uptime: <span>${formatElapsed(proc.elapsedSeconds)}</span></div>
+        <div class="meta-item">STAT: <span>${escapeHtml(proc.stat)}</span></div>
+      </div>
     </div>
   `;
 
@@ -128,9 +136,17 @@ function render(data) {
 
   grid.querySelectorAll(".card[data-pid]").forEach(card => {
     const pid = parseInt(card.dataset.pid);
+    // 展開状態を復元
+    if (openStatsPids.has(String(pid))) {
+      card.querySelector(".card-meta")?.classList.add("open");
+    }
     card.addEventListener("click", () => focusWindow(pid, card));
     card.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") focusWindow(pid, card);
+    });
+    card.querySelector(".stats-toggle")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      card.querySelector(".card-meta")?.classList.toggle("open");
     });
   });
 
