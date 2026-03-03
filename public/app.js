@@ -132,6 +132,10 @@ function render(data) {
           ${proc.gitBranch ? `<img src="git-branch.svg" class="git-branch-icon" alt="branch">` : ""}
           <div class="project-name">${escapeHtml(proc.gitBranch ?? proc.projectName)}</div>
         </div>
+        <div class="card-header-icons">
+          ${proc.editorApp ? `<div class="editor-badge ${proc.editorApp}"><img src="${proc.editorApp}.svg" class="editor-icon" alt="${proc.editorApp}"></div>` : ""}
+          <img src="claude.svg" class="claude-icon" alt="Claude">
+        </div>
       </div>
       ${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR:${escapeHtml(proc.prUrl.split("/").pop() ?? "")}</a>` : ""}
       <div class="project-dir">${escapeHtml(shortenPath(proc.projectDir))}</div>
@@ -153,11 +157,6 @@ function render(data) {
       })() : ""}
       <div class="card-footer">
         <button class="stats-toggle" aria-label="toggle stats">···</button>
-        <div class="card-footer-badges">
-          ${proc.editorApp ? `<div class="editor-badge ${proc.editorApp}"><img src="${proc.editorApp}.svg" class="editor-icon" alt="${proc.editorApp}"></div>` : ""}
-          <img src="claude.svg" class="claude-icon" alt="Claude">
-          <div class="status-badge ${proc.status}">${proc.status}</div>
-        </div>
       </div>
       <div class="card-meta">
         <div class="meta-item">PID: <span>${proc.pid}</span></div>

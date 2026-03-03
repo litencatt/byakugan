@@ -198,18 +198,20 @@ main {
 
 .card-header {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 8px;
   padding-bottom: 7px;
   border-bottom: 1px solid var(--border);
 }
 
-.card-header-badges {
+.card-header-icons {
   display: flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  margin-left: 8px;
 }
 
 .project-name-row {
@@ -217,7 +219,7 @@ main {
   align-items: center;
   gap: 5px;
   overflow: hidden;
-  margin-bottom: 3px;
+  min-width: 0;
 }
 
 .git-branch-icon {
@@ -282,38 +284,13 @@ main {
   color: var(--text-muted);
 }
 
-.status-badge {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.status-badge.working {
-  background: var(--green-dim);
-  color: var(--green);
-}
-
-.status-badge.idle {
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-}
 
 .card-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin-top: 8px;
   padding-top: 6px;
   border-top: 1px solid var(--border);
-}
-
-.card-footer-badges {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .stats-toggle {
