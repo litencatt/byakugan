@@ -181,17 +181,24 @@ function render(data) {
   }).join("");
 
   const editorOnlyHtml = (data.editorWindows && data.editorWindows.length > 0)
-    ? [...data.editorWindows]
-        .sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? ""))
-        .map(w => `
-          <div class="card editor-card" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" role="button" tabindex="0">
-            <div class="card-header">
-              <div class="project-name">${escapeHtml(w.projectName)}</div>
-              <div class="editor-badge ${w.app}"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"></div>
-            </div>
-            <div class="project-dir">${escapeHtml(shortenPath(w.projectDir))}</div>
-          </div>
-        `).join("")
+    ? `<div class="repo-group">
+        <div class="repo-group-header editor-only-header">最近開いたプロジェクト（Claude なし）</div>
+        <div class="repo-group-cards">
+          ${[...data.editorWindows]
+            .sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? ""))
+            .map(w => `
+              <div class="card editor-card" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" role="button" tabindex="0">
+                <div class="card-header">
+                  <div class="project-name">${escapeHtml(w.projectName)}</div>
+                  <div class="card-header-icons">
+                    <div class="editor-badge ${w.app}"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"></div>
+                  </div>
+                </div>
+                <div class="project-dir">${escapeHtml(shortenPath(w.projectDir))}</div>
+              </div>
+            `).join("")}
+        </div>
+      </div>`
     : "";
 
   grid.innerHTML = claudeHtml + editorOnlyHtml;
