@@ -620,9 +620,13 @@ main {
 }
 
 .tbl-star {
-  width: 1%;
+  width: 22px;
+  min-width: 22px;
+  max-width: 22px;
   white-space: nowrap;
   text-align: center;
+  padding-left: 2px;
+  padding-right: 2px;
   padding: 8px 6px 8px 12px;
   font-size: 14px;
   color: var(--text-muted);
@@ -676,13 +680,17 @@ main {
   white-space: nowrap;
 }
 
-.tbl-stat {
+.tbl-stat,
+.process-table thead th.tbl-stat {
   font-size: 13px;
   color: var(--text-muted);
   font-family: monospace;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  padding-left: 4px;
+  padding-right: 4px;
+  width: 1px;
 }
 
 .tbl-icons {
@@ -708,6 +716,38 @@ main {
 .tbl-editor-group td {
   padding-top: 16px;
   border-top: 1px solid var(--border);
+}
+
+.tbl-editor-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.tbl-editor-toggle:hover td {
+  color: var(--accent);
+}
+
+.tbl-collapse-icon {
+  font-size: 10px;
+  margin-right: 4px;
+}
+
+.process-table thead th[data-col-toggle] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.process-table thead th[data-col-toggle]:not(.col-toggled):hover {
+  color: var(--accent);
+}
+
+.process-table thead th.col-toggled {
+  font-size: 9px;
+  text-align: center;
+  color: var(--text-muted);
+  opacity: 0.6;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .tbl-editor-row {
