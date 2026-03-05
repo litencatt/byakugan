@@ -1,0 +1,66 @@
+import type { ClaudeProcess } from "../types.js";
+
+export function escapeHtml(str: string): string {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export function formatTokens(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
+  return String(n);
+}
+
+export function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}m ${String(s).padStart(2, "0")}s`;
+  }
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+export function orgRepo(projectDir: string | null | undefined, gitCommonDir: string | null | undefined): string {
+  const base = gitCommonDir
+    ? gitCommonDir.replace(/\/\.git$/, "")
+    : projectDir;
+  if (!base) return "";
+  const parts = base.replace(/\/$/, "").split("/");
+  if (parts.length >= 2) return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
+  return parts[parts.length - 1] ?? "";
+}
+
+export function shortenPath(p: string | null | undefined): string {
+  if (!p) return "";
+  const home = "/Users/";
+  if (p.startsWith(home)) {
+    const rest = p.slice(home.length);
+    const slash = rest.indexOf("/");
+    if (slash !== -1) return "~/" + rest.slice(slash + 1);
+  }
+  return p;
+}
+
+export function mergeByDir(procs: ClaudeProcess[]): { primary: ClaudeProcess; extras: ClaudeProcess[] }[] {
+  const byDir = new Map<string, ClaudeProcess[]>();
+  for (const proc of procs) {
+    const key = proc.projectDir ?? String(proc.pid);
+    if (!byDir.has(key)) byDir.set(key, []);
+    byDir.get(key)!.push(proc);
+  }
+  return [...byDir.values()].map(dirProcs => {
+    if (dirProcs.length === 1) return { primary: dirProcs[0], extras: [] };
+    const sorted = [...dirProcs].sort((a, b) => {
+      if (a.status === "working" && b.status !== "working") return -1;
+      if (b.status === "working" && a.status !== "working") return 1;
+      return b.pid - a.pid;
+    });
+    return { primary: sorted[0], extras: sorted.slice(1) };
+  });
+}
