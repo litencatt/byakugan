@@ -1,6 +1,9 @@
 import { readdir, readFile, stat } from "fs/promises";
+import { readFileSync } from "fs";
 import path from "path";
 import os from "os";
+import https from "https";
+import { execSync } from "child_process";
 import { encodeProjectDir } from "../utils/processUtils.js";
 
 export async function collectSessionData(projectDir: string): Promise<{ currentTask: string | null; modelName: string | null; inputTokens: number; outputTokens: number }> {
@@ -77,25 +80,233 @@ export async function collectSessionData(projectDir: string): Promise<{ currentT
   }
 }
 
+function getOAuthToken(): string | null {
+  // macOS Keychain
+  if (process.platform === "darwin") {
+    try {
+      const result = execSync(
+        '/usr/bin/security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null',
+        { encoding: "utf-8", timeout: 2000 }
+      ).trim();
+      if (result) {
+        const parsed = JSON.parse(result);
+        const creds = parsed.claudeAiOauth ?? parsed;
+        if (creds.accessToken && (!creds.expiresAt || creds.expiresAt > Date.now())) {
+          return creds.accessToken;
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  // File fallback
+  try {
+    const content = readFileSync(path.join(os.homedir(), ".claude/.credentials.json"), "utf-8");
+    const parsed = JSON.parse(content);
+    const creds = parsed.claudeAiOauth ?? parsed;
+    if (creds.accessToken && (!creds.expiresAt || creds.expiresAt > Date.now())) {
+      return creds.accessToken;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+type OAuthUsageResult = {
+  fiveHourPercent: number;
+  weeklyPercent: number;
+  fiveHourResetsAt: string | null;
+  weeklyResetsAt: string | null;
+};
+
+type OAuthUsageResponse =
+  | { ok: true; data: OAuthUsageResult }
+  | { ok: false; error: 'auth' | 'ratelimit' | 'other' };
+
+// Module-level cache for OAuth usage results
+let oauthCache: {
+  result: OAuthUsageResult | null;
+  error: 'auth' | 'ratelimit' | 'other' | null;
+  fetchedAt: number;
+} | null = null;
+
+const CACHE_TTL_SUCCESS_MS = 30 * 1000;
+const CACHE_TTL_FAILURE_MS = 15 * 1000;
+
+function fetchOAuthUsage(accessToken: string): Promise<OAuthUsageResponse> {
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: "api.anthropic.com",
+      path: "/api/oauth/usage",
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "anthropic-beta": "oauth-2025-04-20",
+        "Content-Type": "application/json",
+      },
+      timeout: 10000,
+    }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => {
+        if (res.statusCode === 200) {
+          try {
+            const parsed = JSON.parse(data);
+            const clamp = (v: number | undefined) =>
+              v == null || !isFinite(v) ? 0 : Math.max(0, Math.min(100, v));
+            resolve({
+              ok: true,
+              data: {
+                fiveHourPercent: clamp(parsed.five_hour?.utilization),
+                weeklyPercent: clamp(parsed.seven_day?.utilization),
+                fiveHourResetsAt: parsed.five_hour?.resets_at ?? null,
+                weeklyResetsAt: parsed.seven_day?.resets_at ?? null,
+              },
+            });
+          } catch { resolve({ ok: false, error: 'other' }); }
+        } else if (res.statusCode === 401 || res.statusCode === 403) {
+          resolve({ ok: false, error: 'auth' });
+        } else if (res.statusCode === 429) {
+          resolve({ ok: false, error: 'ratelimit' });
+        } else {
+          resolve({ ok: false, error: 'other' });
+        }
+      });
+    });
+    req.on("error", () => resolve({ ok: false, error: 'other' }));
+    req.on("timeout", () => { req.destroy(); resolve({ ok: false, error: 'other' }); });
+    req.end();
+  });
+}
+
+async function collectSessionTokens(): Promise<{
+  fiveHourTokens: number;
+  weeklyTokens: number;
+  fiveHourResetsAt: string | null;
+}> {
+  const projectsDir = path.join(os.homedir(), ".claude", "projects");
+  const now = Date.now();
+  const fiveHoursAgo = now - 5 * 60 * 60 * 1000;
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+  let fiveHourTokens = 0;
+  let weeklyTokens = 0;
+  let oldestFiveHourTs: number | null = null;
+
+  const projects = await readdir(projectsDir).catch(() => [] as string[]);
+  await Promise.all(projects.map(async (project) => {
+    const projectPath = path.join(projectsDir, project);
+    const files = await readdir(projectPath).catch(() => [] as string[]);
+    const jsonlFiles = files.filter(f => f.endsWith(".jsonl"));
+
+    await Promise.all(jsonlFiles.map(async (file) => {
+      const filePath = path.join(projectPath, file);
+      try {
+        const fileStat = await stat(filePath);
+        if (fileStat.mtime.getTime() < weekAgo) return;
+
+        const content = await readFile(filePath, "utf-8");
+        for (const line of content.split("\n")) {
+          if (!line.trim()) continue;
+          try {
+            const entry = JSON.parse(line);
+            if (entry.type !== "assistant" || !entry.message?.usage || !entry.timestamp) continue;
+
+            const ts = new Date(entry.timestamp).getTime();
+            if (ts < weekAgo) continue;
+
+            const usage = entry.message.usage;
+            const tokens = (usage.output_tokens ?? 0);
+            weeklyTokens += tokens;
+            if (ts >= fiveHoursAgo) {
+              fiveHourTokens += tokens;
+              if (oldestFiveHourTs === null || ts < oldestFiveHourTs) oldestFiveHourTs = ts;
+            }
+          } catch { /* skip malformed lines */ }
+        }
+      } catch { /* skip inaccessible files */ }
+    }));
+  }));
+
+  // Claudeの5時間制限はスライディングウィンドウ方式（固定時刻区切りではない）。
+  // リセット時刻 = 窓内の最古エントリのタイムスタンプ + 5時間。
+  // そのためリセット時刻はキリの良い時間にならない。
+  // 例: 09:05 に最初のトークンを使った場合 → 14:05 にその分の制限が解放される
+  const fiveHourResetsAt = oldestFiveHourTs
+    ? new Date(oldestFiveHourTs + 5 * 60 * 60 * 1000).toISOString()
+    : null;
+
+  return { fiveHourTokens, weeklyTokens, fiveHourResetsAt };
+}
+
+async function getCachedOAuthUsage(): Promise<OAuthUsageResponse | null> {
+  const now = Date.now();
+
+  if (oauthCache) {
+    const age = now - oauthCache.fetchedAt;
+    if (oauthCache.result !== null) {
+      // Successful cache
+      if (age < CACHE_TTL_SUCCESS_MS) {
+        return { ok: true, data: oauthCache.result };
+      }
+    } else if (oauthCache.error === 'auth') {
+      // Auth errors are never cached — fall through to fetch
+    } else if (oauthCache.error !== null) {
+      // ratelimit / other: cache for failure TTL
+      if (age < CACHE_TTL_FAILURE_MS) {
+        return { ok: false, error: oauthCache.error };
+      }
+    }
+  }
+
+  const token = getOAuthToken();
+  if (!token) return null;
+
+  const response = await fetchOAuthUsage(token);
+
+  if (response.ok) {
+    oauthCache = { result: response.data, error: null, fetchedAt: now };
+  } else if (response.error === 'auth') {
+    // Do not cache auth errors
+    oauthCache = null;
+  } else {
+    oauthCache = { result: null, error: response.error, fetchedAt: now };
+  }
+
+  return response;
+}
+
 export async function collectRateLimitUsage(): Promise<{
+  fiveHourTokens: number;
+  weeklyTokens: number;
   fiveHourPercent: number | null;
   weeklyPercent: number | null;
   fiveHourResetsAt: string | null;
   weeklyResetsAt: string | null;
+  authError: boolean;
 }> {
-  try {
-    const usageCachePath = path.join(os.homedir(), ".claude/plugins/oh-my-claudecode/.usage-cache.json");
-    const content = await readFile(usageCachePath, "utf-8");
-    const cache = JSON.parse(content);
-    if (cache.error || !cache.data) return { fiveHourPercent: null, weeklyPercent: null, fiveHourResetsAt: null, weeklyResetsAt: null };
-    const { fiveHourPercent, weeklyPercent, fiveHourResetsAt, weeklyResetsAt } = cache.data;
-    return {
-      fiveHourPercent: fiveHourPercent ?? null,
-      weeklyPercent: weeklyPercent ?? null,
-      fiveHourResetsAt: fiveHourResetsAt ?? null,
-      weeklyResetsAt: weeklyResetsAt ?? null,
-    };
-  } catch {
-    return { fiveHourPercent: null, weeklyPercent: null, fiveHourResetsAt: null, weeklyResetsAt: null };
-  }
+  const [tokenData, apiResponse] = await Promise.all([
+    collectSessionTokens().catch(() => ({ fiveHourTokens: 0, weeklyTokens: 0, fiveHourResetsAt: null })),
+    getCachedOAuthUsage(),
+  ]);
+
+  const apiData = apiResponse?.ok ? apiResponse.data : null;
+  const authError = apiResponse !== null && !apiResponse.ok && apiResponse.error === 'auth';
+
+  // Fallback approximate % when OAuth unavailable (env-configured limits only)
+  const fiveHourLimit = process.env.BYAKUGAN_5H_LIMIT ? parseInt(process.env.BYAKUGAN_5H_LIMIT) : null;
+  const weeklyLimit = process.env.BYAKUGAN_WEEKLY_LIMIT ? parseInt(process.env.BYAKUGAN_WEEKLY_LIMIT) : null;
+  const fallbackFiveHourPercent = !apiData && fiveHourLimit && tokenData.fiveHourTokens > 0
+    ? Math.min(100, Math.round((tokenData.fiveHourTokens / fiveHourLimit) * 100))
+    : null;
+  const fallbackWeeklyPercent = !apiData && weeklyLimit && tokenData.weeklyTokens > 0
+    ? Math.min(100, Math.round((tokenData.weeklyTokens / weeklyLimit) * 100))
+    : null;
+
+  return {
+    fiveHourTokens: tokenData.fiveHourTokens,
+    weeklyTokens: tokenData.weeklyTokens,
+    fiveHourPercent: apiData?.fiveHourPercent ?? fallbackFiveHourPercent,
+    weeklyPercent: apiData?.weeklyPercent ?? fallbackWeeklyPercent,
+    fiveHourResetsAt: apiData?.fiveHourResetsAt ?? tokenData.fiveHourResetsAt,
+    weeklyResetsAt: apiData?.weeklyResetsAt ?? null,
+    authError,
+  };
 }
