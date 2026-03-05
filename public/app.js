@@ -182,11 +182,20 @@ function render(rawData) {
     groupMap.get(key).push(proc);
   }
   const groups = [...groupMap.entries()]
-    .map(([key, procs]) => ({
-      key,
-      repoName: key.replace(/\/\.git$/, "").split("/").pop() ?? key,
-      procs: procs.sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? "")),
-    }))
+    .map(([key, procs]) => {
+      const keyBase = key.replace(/\/\.git$/, "");
+      const parts = keyBase.split("/");
+      const repoName = parts[parts.length - 1] ?? key;
+      const orgRepoName = parts.length >= 2
+        ? `${parts[parts.length - 2]}/${parts[parts.length - 1]}`
+        : repoName;
+      return {
+        key,
+        repoName,
+        orgRepoName,
+        procs: procs.sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? "")),
+      };
+    })
     .sort((a, b) => a.repoName.localeCompare(b.repoName));
 
   const cardHtml = (proc, extraProcs = []) => `
@@ -231,9 +240,10 @@ function render(rawData) {
     </div>
   `;
 
-  const tableRowHtml = (proc, extraProcs = []) => `
+  const tableRowHtml = (proc, extraProcs = [], hideProject = false) => `
     <tr class="${proc.status}" data-pid="${proc.pid}" tabindex="0" role="button">
-      <td class="tbl-project">${escapeHtml(orgRepo(proc.projectDir, proc.gitCommonDir))}</td>
+      <td class="tbl-project">${hideProject ? "" : escapeHtml(orgRepo(proc.projectDir, proc.gitCommonDir))}</td>
+      <td class="tbl-dir">${escapeHtml(proc.projectDir ? proc.projectDir.split("/").pop() : "")}</td>
       <td class="tbl-branch">${proc.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(proc.gitBranch)}</span>` : ""}</td>
       <td class="tbl-pr">${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR#${escapeHtml(proc.prUrl.split("/").pop() ?? "")}${proc.prTitle ? ` ${escapeHtml(proc.prTitle)}` : ""}</a>` : ""}</td>
       <td class="tbl-stat">${proc.cpuPercent.toFixed(1)}%</td>
@@ -272,16 +282,14 @@ function render(rawData) {
     .sort((a, b) => b.procs.length - a.procs.length);
 
   if (viewMode === "list") {
-    const tableRows = [
-      ...multiGroups.map(({ repoName, procs }) =>
-        `<tr class="tbl-group-row"><td colspan="7" class="tbl-group-cell">${escapeHtml(repoName)}</td></tr>` +
-        mergeByDir(procs).map(({ primary, extras }) => tableRowHtml(primary, extras)).join("")
-      ),
-      ...singles.map(({ procs }) => tableRowHtml(procs[0])),
-    ].join("");
+    const tableRows = mergeByDir(
+      [...data.processes].sort((a, b) =>
+        orgRepo(a.projectDir, a.gitCommonDir).localeCompare(orgRepo(b.projectDir, b.gitCommonDir))
+      )
+    ).map(({ primary, extras }) => tableRowHtml(primary, extras)).join("");
 
     const editorRows = (data.editorWindows && data.editorWindows.length > 0)
-      ? `<tr class="tbl-group-row tbl-editor-group"><td colspan="7" class="tbl-group-cell">最近開いたプロジェクト</td></tr>` +
+      ? `<tr class="tbl-group-row tbl-editor-group"><td colspan="8" class="tbl-group-cell">最近開いたプロジェクト</td></tr>` +
         [...data.editorWindows]
           .sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? ""))
           .map(w => `
@@ -299,6 +307,7 @@ function render(rawData) {
         <thead>
           <tr>
             <th>Project</th>
+            <th>Dir</th>
             <th>Branch</th>
             <th>PR</th>
             <th>CPU</th>

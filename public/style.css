@@ -621,6 +621,13 @@ main {
   white-space: nowrap;
 }
 
+.tbl-dir {
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .tbl-branch-name {
   display: inline-flex;
   align-items: center;
