@@ -225,7 +225,7 @@ function render(rawData) {
     <tr class="${proc.status}" data-pid="${proc.pid}" tabindex="0" role="button">
       <td class="tbl-project">${escapeHtml(proc.projectName)}</td>
       <td class="tbl-branch">${proc.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(proc.gitBranch)}</span>` : ""}</td>
-      <td class="tbl-task">${proc.currentTask ? escapeHtml(proc.currentTask) : ""}</td>
+      <td class="tbl-pr">${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR#${escapeHtml(proc.prUrl.split("/").pop() ?? "")}${proc.prTitle ? ` ${escapeHtml(proc.prTitle)}` : ""}</a>` : ""}</td>
       <td class="tbl-stat">${proc.cpuPercent.toFixed(1)}%</td>
       <td class="tbl-stat">${proc.memPercent.toFixed(1)}%</td>
       <td class="tbl-stat">${formatElapsed(proc.elapsedSeconds)}</td>
@@ -290,7 +290,7 @@ function render(rawData) {
           <tr>
             <th>Project</th>
             <th>Branch</th>
-            <th>Task</th>
+            <th>PR</th>
             <th>CPU</th>
             <th>MEM</th>
             <th>Uptime</th>

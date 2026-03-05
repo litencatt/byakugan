@@ -638,11 +638,8 @@ main {
   white-space: nowrap;
 }
 
-.tbl-task {
-  font-size: 13px;
-  color: var(--accent);
-  font-family: monospace;
-  max-width: 300px;
+.tbl-pr {
+  max-width: 320px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
