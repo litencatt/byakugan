@@ -142,11 +142,12 @@ function render(rawData) {
       const pctStr = pct !== null ? `${pct}%` : formatTokens(u.fiveHourTokens);
       parts.push(`<span class="usage-limit usage-5h ${cls}">5h:${pctStr}${t ? ` (${t})` : ""}${jst ? ` reset ${jst}` : ""}</span>`);
     }
-    if (u.weeklyTokens > 0) {
+    if (u.weeklyTokens > 0 || u.weeklyPercent !== null) {
       const pct = u.weeklyPercent;
       const cls = pct !== null && pct >= 90 ? "usage-critical" : pct !== null && pct >= 70 ? "usage-warning" : "";
       const pctStr = pct !== null ? `${pct}%` : formatTokens(u.weeklyTokens);
-      parts.push(`<span class="usage-limit usage-wk ${cls}">7d:${pctStr}</span>`);
+      const t = formatTimeUntil(u.weeklyResetsAt);
+      parts.push(`<span class="usage-limit usage-wk ${cls}">7d:${pctStr}${t ? ` (${t})` : ""}</span>`);
     }
     usageEl.innerHTML = parts.join("");
   }

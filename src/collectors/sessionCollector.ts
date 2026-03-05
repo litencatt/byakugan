@@ -1,6 +1,9 @@
 import { readdir, readFile, stat } from "fs/promises";
+import { readFileSync } from "fs";
 import path from "path";
 import os from "os";
+import https from "https";
+import { execSync } from "child_process";
 import { encodeProjectDir } from "../utils/processUtils.js";
 
 export async function collectSessionData(projectDir: string): Promise<{ currentTask: string | null; modelName: string | null; inputTokens: number; outputTokens: number }> {
@@ -77,77 +80,149 @@ export async function collectSessionData(projectDir: string): Promise<{ currentT
   }
 }
 
+function getOAuthToken(): string | null {
+  // macOS Keychain
+  if (process.platform === "darwin") {
+    try {
+      const result = execSync(
+        '/usr/bin/security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null',
+        { encoding: "utf-8", timeout: 2000 }
+      ).trim();
+      if (result) {
+        const parsed = JSON.parse(result);
+        const creds = parsed.claudeAiOauth ?? parsed;
+        if (creds.accessToken && (!creds.expiresAt || creds.expiresAt > Date.now())) {
+          return creds.accessToken;
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  // File fallback
+  try {
+    const content = readFileSync(path.join(os.homedir(), ".claude/.credentials.json"), "utf-8");
+    const parsed = JSON.parse(content);
+    const creds = parsed.claudeAiOauth ?? parsed;
+    if (creds.accessToken && (!creds.expiresAt || creds.expiresAt > Date.now())) {
+      return creds.accessToken;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function fetchOAuthUsage(accessToken: string): Promise<{
+  fiveHourPercent: number;
+  weeklyPercent: number;
+  fiveHourResetsAt: string | null;
+  weeklyResetsAt: string | null;
+} | null> {
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: "api.anthropic.com",
+      path: "/api/oauth/usage",
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "anthropic-beta": "oauth-2025-04-20",
+        "Content-Type": "application/json",
+      },
+      timeout: 10000,
+    }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => {
+        if (res.statusCode === 200) {
+          try {
+            const parsed = JSON.parse(data);
+            const clamp = (v: number | undefined) =>
+              v == null || !isFinite(v) ? 0 : Math.max(0, Math.min(100, v));
+            resolve({
+              fiveHourPercent: clamp(parsed.five_hour?.utilization),
+              weeklyPercent: clamp(parsed.seven_day?.utilization),
+              fiveHourResetsAt: parsed.five_hour?.resets_at ?? null,
+              weeklyResetsAt: parsed.seven_day?.resets_at ?? null,
+            });
+          } catch { resolve(null); }
+        } else {
+          resolve(null);
+        }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+    req.end();
+  });
+}
+
+async function collectSessionTokens(): Promise<{
+  fiveHourTokens: number;
+  weeklyTokens: number;
+}> {
+  const projectsDir = path.join(os.homedir(), ".claude", "projects");
+  const now = Date.now();
+  const fiveHoursAgo = now - 5 * 60 * 60 * 1000;
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+  let fiveHourTokens = 0;
+  let weeklyTokens = 0;
+
+  const projects = await readdir(projectsDir).catch(() => [] as string[]);
+  await Promise.all(projects.map(async (project) => {
+    const projectPath = path.join(projectsDir, project);
+    const files = await readdir(projectPath).catch(() => [] as string[]);
+    const jsonlFiles = files.filter(f => f.endsWith(".jsonl"));
+
+    await Promise.all(jsonlFiles.map(async (file) => {
+      const filePath = path.join(projectPath, file);
+      try {
+        const fileStat = await stat(filePath);
+        if (fileStat.mtime.getTime() < weekAgo) return;
+
+        const content = await readFile(filePath, "utf-8");
+        for (const line of content.split("\n")) {
+          if (!line.trim()) continue;
+          try {
+            const entry = JSON.parse(line);
+            if (entry.type !== "assistant" || !entry.message?.usage || !entry.timestamp) continue;
+
+            const ts = new Date(entry.timestamp).getTime();
+            if (ts < weekAgo) continue;
+
+            const usage = entry.message.usage;
+            const tokens = (usage.output_tokens ?? 0);
+            weeklyTokens += tokens;
+            if (ts >= fiveHoursAgo) fiveHourTokens += tokens;
+          } catch { /* skip malformed lines */ }
+        }
+      } catch { /* skip inaccessible files */ }
+    }));
+  }));
+
+  return { fiveHourTokens, weeklyTokens };
+}
+
 export async function collectRateLimitUsage(): Promise<{
   fiveHourTokens: number;
   weeklyTokens: number;
   fiveHourPercent: number | null;
   weeklyPercent: number | null;
   fiveHourResetsAt: string | null;
+  weeklyResetsAt: string | null;
 }> {
-  try {
-    const projectsDir = path.join(os.homedir(), ".claude", "projects");
-    const now = Date.now();
-    const fiveHoursAgo = now - 5 * 60 * 60 * 1000;
-    const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const [tokenData, apiData] = await Promise.all([
+    collectSessionTokens().catch(() => ({ fiveHourTokens: 0, weeklyTokens: 0 })),
+    (async () => {
+      const token = getOAuthToken();
+      if (!token) return null;
+      return fetchOAuthUsage(token);
+    })(),
+  ]);
 
-    let fiveHourTokens = 0;
-    let weeklyTokens = 0;
-    let oldestFiveHourTs: number | null = null;
-
-    const projects = await readdir(projectsDir).catch(() => [] as string[]);
-
-    await Promise.all(projects.map(async (project) => {
-      const projectPath = path.join(projectsDir, project);
-      const files = await readdir(projectPath).catch(() => [] as string[]);
-      const jsonlFiles = files.filter(f => f.endsWith(".jsonl"));
-
-      await Promise.all(jsonlFiles.map(async (file) => {
-        const filePath = path.join(projectPath, file);
-        try {
-          const fileStat = await stat(filePath);
-          if (fileStat.mtime.getTime() < weekAgo) return;
-
-          const content = await readFile(filePath, "utf-8");
-          for (const line of content.split("\n")) {
-            if (!line.trim()) continue;
-            try {
-              const entry = JSON.parse(line);
-              if (entry.type !== "assistant" || !entry.message?.usage || !entry.timestamp) continue;
-
-              const ts = new Date(entry.timestamp).getTime();
-              if (ts < weekAgo) continue;
-
-              const usage = entry.message.usage;
-              const tokens =
-                (usage.input_tokens ?? 0) +
-                (usage.output_tokens ?? 0) +
-                (usage.cache_creation_input_tokens ?? 0) +
-                (usage.cache_read_input_tokens ?? 0);
-
-              weeklyTokens += tokens;
-              if (ts >= fiveHoursAgo) {
-                fiveHourTokens += tokens;
-                if (oldestFiveHourTs === null || ts < oldestFiveHourTs) {
-                  oldestFiveHourTs = ts;
-                }
-              }
-            } catch { /* skip malformed lines */ }
-          }
-        } catch { /* skip inaccessible files */ }
-      }));
-    }));
-
-    const fiveHourResetsAt = oldestFiveHourTs
-      ? new Date(oldestFiveHourTs + 5 * 60 * 60 * 1000).toISOString()
-      : null;
-
-    const fiveHourLimit = parseInt(process.env.BYAKUGAN_5H_LIMIT ?? "1000000");
-    const weeklyLimit = parseInt(process.env.BYAKUGAN_WEEKLY_LIMIT ?? "5000000");
-    const fiveHourPercent = Math.min(100, Math.round((fiveHourTokens / fiveHourLimit) * 100));
-    const weeklyPercent = Math.min(100, Math.round((weeklyTokens / weeklyLimit) * 100));
-
-    return { fiveHourTokens, weeklyTokens, fiveHourPercent, weeklyPercent, fiveHourResetsAt };
-  } catch {
-    return { fiveHourTokens: 0, weeklyTokens: 0, fiveHourPercent: null, weeklyPercent: null, fiveHourResetsAt: null };
-  }
+  return {
+    fiveHourTokens: tokenData.fiveHourTokens,
+    weeklyTokens: tokenData.weeklyTokens,
+    fiveHourPercent: apiData?.fiveHourPercent ?? null,
+    weeklyPercent: apiData?.weeklyPercent ?? null,
+    fiveHourResetsAt: apiData?.fiveHourResetsAt ?? null,
+    weeklyResetsAt: apiData?.weeklyResetsAt ?? null,
+  };
 }
