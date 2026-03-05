@@ -2,14 +2,16 @@
 
 # byakugan
 
+> Real-time dashboard for Claude Code agents — monitor status, token usage, git branches, PRs, and containers
+
 Like the Byakugan — the Hyūga clan's kekkei genkai — byakugan sees through your entire development environment from a single screen.
 
 While active, it monitors all running Claude Code processes in near-360° real-time vision.
-From chakra flow (token usage) to each process's inner state (tasks, open files, CPU/memory),
+From chakra flow (token usage) to each process's inner state (thinking / executing / waiting),
 to intelligence from kilometers away (multiple repos, branches, PRs) — all gathered on one screen.
 Even tenketsu (Docker container status) never escapes its sight.
 
-Click any card to instantly jump to the corresponding VSCode / Cursor window.
+Click any row or card to instantly jump to the corresponding VSCode / Cursor window.
 **macOS only.**
 
 [日本語版 README はこちら](./README.ja.md)
@@ -31,28 +33,36 @@ Click any card to instantly jump to the corresponding VSCode / Cursor window.
 
 ## Features
 
-### Card display
+### Table view (default)
+Each Claude Code process appears as a sortable row with:
+- **Project** + **Dir** + **Branch** + **PR** columns
+- **Status**: live Claude state — `thinking` / `tool_use` / `executing` / `waiting`
+- **Docker containers** status (`🐳 3/4 api db redis`)
+- **CPU / MEM / Uptime** stats
+- **Column show/hide**: click any column header to toggle visibility (persisted)
+- **Star**: pin important processes to the top
+- **Recently opened projects**: editor windows without an active Claude process, collapsible
+
+### Card view
 Each Claude Code process appears as a card showing:
 - **Repository name** + **git branch** (main title)
-- **PR title** + **PR link** with PR number (e.g. `PR:1234 Fix authentication bug`)
-- **Docker containers** status (`🐳 3/4 api db redis`)
+- **PR title** + **PR link** with PR number (e.g. `#1234: Fix authentication bug`)
+- **Docker containers** status
 - **Editor icon** (VSCode / Cursor) in top-right corner
 - **Working/idle status** via green border highlight
-- **Stats panel** (CPU, memory, uptime, PID) — toggle with `···`
-
-### Layout
-- **Worktree grouping**: Multiple worktrees of the same repository are grouped under a repo header, sorted by worktree count (most active repos first)
-- **Recently opened projects**: Editor windows without an active Claude process shown in a separate section at the bottom
 
 ### Header
 - **Token usage**: 5-hour and weekly Claude API usage (e.g. `5h:32% (2h5m)[reset:02:00] wk:35%(2d13h)`)
 - **Working/idle counts**: Live count of active and idle agents
 - **Demo mode**: Replace all project info with dummy data for screenshots
+- **View toggle**: Switch between Table and Card layout
 
 ### Other
-- **One-click IDE focus**: Click a card to instantly activate the corresponding VSCode / Cursor window
+- **One-click IDE focus**: Click any row or card to instantly activate the corresponding VSCode / Cursor window
+- **Selection highlight**: Last clicked row/card retains highlight until another is selected
 - **Dark / light theme**: Follows system preference
 - **SSE-based live updates**: Refreshes every 2 seconds
+- **PR info caching**: `gh pr view` is only called when `FETCH_HEAD` changes (on push/pull/fetch)
 - **Hot reload**: Auto-reloads the UI when files in `public/` change during development
 
 ## Prerequisites
@@ -157,6 +167,7 @@ Returns a snapshot of all running Claude Code processes.
       "projectName": "my-project",
       "projectDir": "/Users/user/projects/my-project",
       "status": "working",
+      "claudeStatus": "executing",
       "cpuPercent": 15.2,
       "memPercent": 8.5,
       "currentTask": "Implement new feature for dashboard",
