@@ -36,10 +36,9 @@ export interface EditorWindow {
 export interface UsageData {
   totalInputTokens: number;
   totalOutputTokens: number;
-  fiveHourPercent: number | null;
-  weeklyPercent: number | null;
+  fiveHourTokens: number;
+  weeklyTokens: number;
   fiveHourResetsAt: string | null;
-  weeklyResetsAt: string | null;
 }
 
 export interface DashboardData {
