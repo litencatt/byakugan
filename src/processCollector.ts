@@ -137,12 +137,19 @@ export async function collectProcesses(): Promise<DashboardData> {
   // Editor windows without a Claude process
   const claudeDirs = new Set(visible.map(p => p.projectDir));
   const seenEditorDirs = new Set<string>();
-  const editorWindows = allEditorWindows.filter(w => {
+  const filteredEditorWindows = allEditorWindows.filter(w => {
     if (claudeDirs.has(w.projectDir)) return false;
     if (seenEditorDirs.has(w.projectDir)) return false;
     seenEditorDirs.add(w.projectDir);
     return true;
   });
+
+  const editorWindows = await Promise.all(
+    filteredEditorWindows.map(async w => {
+      const git = await collectGitInfo(w.projectDir);
+      return { ...w, ...git };
+    })
+  );
 
   const usage: UsageData = {
     totalInputTokens,

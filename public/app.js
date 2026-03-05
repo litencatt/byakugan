@@ -2,6 +2,41 @@ let es = null;
 let demoMode = false;
 let lastData = null;
 let starredPids = new Set(JSON.parse(localStorage.getItem("starredPids") || "[]"));
+let editorSectionCollapsed = localStorage.getItem("editorSectionCollapsed") === "true";
+let hiddenColumns = new Set(JSON.parse(localStorage.getItem("hiddenColumns") || "[]"));
+
+const COL_DEFS = [
+  { key: "star",       fixed: "22px", label: "",           stat: false },
+  { key: "project",    fixed: null,   label: "Project",    stat: false },
+  { key: "dir",        fixed: null,   label: "Dir",        stat: false },
+  { key: "branch",     fixed: null,   label: "Branch",     stat: false },
+  { key: "pr",         fixed: null,   label: "PR",         stat: false },
+  { key: "containers", fixed: null,   label: "Containers", stat: false },
+  { key: "cpu",        fixed: null,   label: "CPU",        stat: true  },
+  { key: "mem",        fixed: null,   label: "MEM",        stat: true  },
+  { key: "uptime",     fixed: null,   label: "Uptime",     stat: true  },
+  { key: "icons",      fixed: null,   label: "",           stat: false },
+];
+
+const HIDDEN_COL_W = "14px";
+
+function updateHiddenColStyles() {
+  let styleEl = document.getElementById("col-hide-style");
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "col-hide-style";
+    document.head.appendChild(styleEl);
+  }
+  const rules = [];
+  COL_DEFS.forEach((c, i) => {
+    if (hiddenColumns.has(c.key)) {
+      const n = i + 1;
+      rules.push(`.process-table th:nth-child(${n}) { padding: 4px 0 !important; }`);
+      rules.push(`.process-table td:nth-child(${n}) { padding: 0 !important; overflow: hidden; }`);
+    }
+  });
+  styleEl.textContent = rules.join("\n");
+}
 
 const DEMO_REPOS = ["project-alpha", "my-webapp", "api-service", "data-pipeline", "frontend-app", "auth-service"];
 const DEMO_BRANCHES = ["feat/user-auth", "fix/payment-bug", "docs/api-update", "refactor/db-layer", "feat/search-feature", "fix/login-issue", "feat/dashboard-v2", "chore/deps-update"];
@@ -177,7 +212,7 @@ function cardHtml(proc, extraProcs = []) {
           ${extraProcs.length > 0 ? `<span class="duplicate-badge">×${extraProcs.length + 1}</span>` : ""}
         </div>
       </div>
-      ${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR#${escapeHtml(proc.prUrl.split("/").pop() ?? "")}${proc.prTitle ? ` ${escapeHtml(proc.prTitle)}` : ""}</a>` : `<div class="project-dir">${escapeHtml(shortenPath(proc.projectDir))}</div>`}
+      ${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${proc.prTitle ? `#${escapeHtml(proc.prUrl.split("/").pop() ?? "")}: ${escapeHtml(proc.prTitle)}` : `#${escapeHtml(proc.prUrl.split("/").pop() ?? "")}`}</a>` : `<div class="project-dir">${escapeHtml(shortenPath(proc.projectDir))}</div>`}
       ${proc.modelName ? `<div class="card-tags"><div class="model-name">${escapeHtml(proc.modelName.replace("claude-", ""))}</div></div>` : ""}
       ${proc.currentTask ? `<div class="current-task">${escapeHtml(proc.currentTask)}</div>` : ""}
       ${proc.openFiles && proc.openFiles.length > 0 ? `
@@ -211,7 +246,7 @@ function tableRowHtml(proc, extraProcs = []) {
       <td class="tbl-project">${escapeHtml(orgRepo(proc.projectDir, proc.gitCommonDir))}</td>
       <td class="tbl-dir">${escapeHtml(shortenPath(proc.projectDir))}</td>
       <td class="tbl-branch">${proc.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(proc.gitBranch)}</span>` : ""}</td>
-      <td class="tbl-pr">${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR#${escapeHtml(proc.prUrl.split("/").pop() ?? "")}${proc.prTitle ? ` ${escapeHtml(proc.prTitle)}` : ""}</a>` : ""}</td>
+      <td class="tbl-pr">${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${proc.prTitle ? `#${escapeHtml(proc.prUrl.split("/").pop() ?? "")}: ${escapeHtml(proc.prTitle)}` : `#${escapeHtml(proc.prUrl.split("/").pop() ?? "")}`}</a>` : ""}</td>
       <td class="tbl-containers">${containersHtml}</td>
       <td class="tbl-stat">${proc.cpuPercent.toFixed(1)}%</td>
       <td class="tbl-stat">${proc.memPercent.toFixed(1)}%</td>
@@ -237,39 +272,62 @@ function renderTable(data, grid) {
     .map(({ primary, extras }) => tableRowHtml(primary, extras)).join("");
 
   const editorRows = (data.editorWindows && data.editorWindows.length > 0)
-    ? `<tr class="tbl-group-row tbl-editor-group"><td colspan="10" class="tbl-group-cell">最近開いたプロジェクト</td></tr>` +
-      [...data.editorWindows]
+    ? `<tr class="tbl-group-row tbl-editor-group tbl-editor-toggle" tabindex="0" role="button">
+        <td colspan="10" class="tbl-group-cell">
+          <span class="tbl-collapse-icon">${editorSectionCollapsed ? "▶" : "▼"}</span> 最近開いたプロジェクト
+        </td>
+       </tr>` +
+      (editorSectionCollapsed ? "" : [...data.editorWindows]
         .sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? ""))
         .map(w => `
           <tr class="tbl-editor-row" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" tabindex="0" role="button">
             <td></td>
-            <td class="tbl-project">${escapeHtml(w.projectName)}</td>
-            <td class="tbl-path" colspan="2">${escapeHtml(shortenPath(w.projectDir))}</td>
-            <td colspan="4"></td>
+            <td class="tbl-project">${escapeHtml(orgRepo(w.projectDir, w.gitCommonDir))}</td>
+            <td class="tbl-dir">${escapeHtml(shortenPath(w.projectDir))}</td>
+            <td class="tbl-branch">${w.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(w.gitBranch)}</span>` : ""}</td>
+            <td class="tbl-pr">${w.prUrl ? `<a class="pr-link" href="${escapeHtml(w.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${w.prTitle ? `#${escapeHtml(w.prUrl.split("/").pop() ?? "")}: ${escapeHtml(w.prTitle)}` : `#${escapeHtml(w.prUrl.split("/").pop() ?? "")}`}</a>` : ""}</td>
+            <td class="tbl-containers"></td>
+            <td class="tbl-stat"></td>
+            <td class="tbl-stat"></td>
+            <td class="tbl-stat"></td>
             <td class="tbl-icons"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"></td>
           </tr>
-        `).join("")
+        `).join(""))
     : "";
+
+  const colgroupHtml = `<colgroup>${COL_DEFS.map(c => {
+    const hidden = hiddenColumns.has(c.key);
+    const w = hidden ? HIDDEN_COL_W : c.fixed;
+    return `<col${w ? ` style="width:${w}"` : ""}>`;
+  }).join("")}</colgroup>`;
+
+  const theadHtml = `<thead><tr>${COL_DEFS.map(c => {
+    const hidden = hiddenColumns.has(c.key);
+    const cls = [c.stat && !hidden ? "tbl-stat" : "", hidden ? "col-toggled" : ""].filter(Boolean).join(" ");
+    return `<th${cls ? ` class="${cls}"` : ""} data-col-toggle="${c.key}" title="${c.label || c.key}">${hidden ? "▸" : c.label}</th>`;
+  }).join("")}</tr></thead>`;
 
   grid.innerHTML = `
     <table class="process-table">
-      <thead>
-        <tr>
-          <th></th>
-          <th>Project</th>
-          <th>Dir</th>
-          <th>Branch</th>
-          <th>PR</th>
-          <th>Containers</th>
-          <th>CPU</th>
-          <th>MEM</th>
-          <th>Uptime</th>
-          <th></th>
-        </tr>
-      </thead>
+      ${colgroupHtml}
+      ${theadHtml}
       <tbody>${tableRows}${editorRows}</tbody>
     </table>
   `;
+
+  updateHiddenColStyles();
+
+  grid.querySelectorAll("th[data-col-toggle]").forEach(th => {
+    th.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const key = th.dataset.colToggle;
+      if (!key) return;
+      if (hiddenColumns.has(key)) hiddenColumns.delete(key);
+      else hiddenColumns.add(key);
+      localStorage.setItem("hiddenColumns", JSON.stringify([...hiddenColumns]));
+      if (lastData) render(lastData);
+    });
+  });
 
   grid.querySelectorAll(".tbl-star[data-star-pid]").forEach(cell => {
     const pid = parseInt(cell.dataset.starPid);
@@ -289,6 +347,19 @@ function renderTable(data, grid) {
       if (e.key === "Enter" || e.key === " ") focusWindow(pid, row);
     });
   });
+
+  const toggleRow = grid.querySelector(".tbl-editor-toggle");
+  if (toggleRow) {
+    const toggle = () => {
+      editorSectionCollapsed = !editorSectionCollapsed;
+      localStorage.setItem("editorSectionCollapsed", String(editorSectionCollapsed));
+      if (lastData) render(lastData);
+    };
+    toggleRow.addEventListener("click", toggle);
+    toggleRow.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") toggle();
+    });
+  }
 
   grid.querySelectorAll("tr[data-dir]").forEach(row => {
     const dir = row.dataset.dir;
@@ -484,6 +555,7 @@ function applyViewMode() {
 
 connect();
 applyViewMode();
+updateHiddenColStyles();
 
 document.getElementById("view-toggle").addEventListener("click", function () {
   viewMode = viewMode === "grid" ? "list" : "grid";
