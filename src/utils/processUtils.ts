@@ -29,7 +29,7 @@ export function parseStorageFolders(
     const projectDir = decodeURIComponent(folderUri.replace("file://", "")).replace(/\/$/, "");
     if (!projectDir) continue;
     const projectName = projectDir.split("/").pop() ?? projectDir;
-    results.push({ app, projectDir, projectName });
+    results.push({ app, projectDir, projectName, gitBranch: null, gitCommonDir: null, prUrl: null, prTitle: null });
   }
   return results;
 }

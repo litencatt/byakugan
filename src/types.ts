@@ -31,6 +31,10 @@ export interface EditorWindow {
   app: "vscode" | "cursor";
   projectDir: string;
   projectName: string;
+  gitBranch: string | null;
+  gitCommonDir: string | null;
+  prUrl: string | null;
+  prTitle: string | null;
 }
 
 export interface UsageData {
