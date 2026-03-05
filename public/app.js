@@ -134,16 +134,13 @@ function render(rawData) {
     if (u.totalInputTokens > 0 || u.totalOutputTokens > 0) {
       parts.push(`<span class="usage-tokens">↑${formatTokens(u.totalInputTokens)} ↓${formatTokens(u.totalOutputTokens)}</span>`);
     }
-    if (u.fiveHourPercent !== null) {
+    if (u.fiveHourTokens > 0) {
       const t = formatTimeUntil(u.fiveHourResetsAt);
       const jst = formatJST(u.fiveHourResetsAt);
-      const cls = u.fiveHourPercent >= 90 ? "usage-critical" : u.fiveHourPercent >= 70 ? "usage-warning" : "";
-      parts.push(`<span class="usage-limit usage-5h ${cls}">5h:${u.fiveHourPercent}%${t ? ` (${t})` : ""}${jst ? `(reset ${jst})` : ""}</span>`);
+      parts.push(`<span class="usage-limit usage-5h">5h:${formatTokens(u.fiveHourTokens)}${t ? ` (${t})` : ""}${jst ? ` reset ${jst}` : ""}</span>`);
     }
-    if (u.weeklyPercent !== null) {
-      const t = formatTimeUntil(u.weeklyResetsAt);
-      const cls = u.weeklyPercent >= 90 ? "usage-critical" : u.weeklyPercent >= 70 ? "usage-warning" : "";
-      parts.push(`<span class="usage-limit usage-wk ${cls}">wk:${u.weeklyPercent}%${t ? `(${t})` : ""}</span>`);
+    if (u.weeklyTokens > 0) {
+      parts.push(`<span class="usage-limit usage-wk">7d:${formatTokens(u.weeklyTokens)}</span>`);
     }
     usageEl.innerHTML = parts.join("");
   }
