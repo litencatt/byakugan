@@ -315,7 +315,7 @@ function renderTable(data, grid) {
   const editorRows = (data.editorWindows && data.editorWindows.length > 0)
     ? `<tr class="tbl-group-row tbl-editor-group tbl-editor-toggle" tabindex="0" role="button">
         <td colspan="10" class="tbl-group-cell">
-          <span class="tbl-collapse-icon">${editorSectionCollapsed ? "▶" : "▼"}</span> 最近開いたプロジェクト
+          <span class="tbl-collapse-icon">${editorSectionCollapsed ? "▶" : "▼"}</span> Recently Opened Projects
         </td>
        </tr>` +
       (editorSectionCollapsed ? "" : [...data.editorWindows]
@@ -451,7 +451,7 @@ function renderCards(data, grid) {
 
   const editorOnlyHtml = (data.editorWindows && data.editorWindows.length > 0)
     ? `<div class="repo-group">
-        <div class="repo-group-header editor-only-header">最近開いたプロジェクト</div>
+        <div class="repo-group-header editor-only-header">Recently Opened Projects</div>
         <div class="repo-group-cards">
           ${[...data.editorWindows]
             .sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? ""))
