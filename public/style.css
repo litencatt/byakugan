@@ -571,13 +571,13 @@ main {
 .process-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .process-table thead th {
   text-align: left;
-  padding: 6px 10px;
-  font-size: 11px;
+  padding: 8px 12px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
@@ -611,7 +611,7 @@ main {
 }
 
 .process-table td {
-  padding: 7px 10px;
+  padding: 8px 12px;
   vertical-align: middle;
 }
 
@@ -626,20 +626,20 @@ main {
   align-items: center;
   gap: 3px;
   font-family: monospace;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--accent);
   white-space: nowrap;
 }
 
 .tbl-model {
   font-family: monospace;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-muted);
   white-space: nowrap;
 }
 
 .tbl-task {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--accent);
   font-family: monospace;
   max-width: 300px;
@@ -649,7 +649,7 @@ main {
 }
 
 .tbl-stat {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-muted);
   font-family: monospace;
   white-space: nowrap;
@@ -662,14 +662,14 @@ main {
 }
 
 .tbl-path {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-muted);
   font-family: monospace;
 }
 
 .tbl-group-row td {
-  padding: 10px 10px 4px;
-  font-size: 11px;
+  padding: 10px 12px 4px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   border-bottom: none;
