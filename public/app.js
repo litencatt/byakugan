@@ -61,7 +61,7 @@ function generateDemoData(collectedAt) {
     { repo: "api-service",    org: "demo-org",   branch: "chore/deps-update",    pr: 1, containers: 0, cpu: 0.3,  mem: 0.2, elapsed: 3600*7+0*60,  status: "idle",    claudeStatus: "waiting",   model: "sonnet-4-6" },
     { repo: "api-service",    org: "demo-org",   branch: "feat/user-auth",       pr: 2, containers: 0, cpu: 0.0,  mem: 0.5, elapsed: 3600*1+4*60,  status: "idle",    claudeStatus: null,        model: "sonnet-4-6" },
     { repo: "project-alpha",  org: "my-company", branch: "fix/payment-bug",      pr: 3, containers: 4, cpu: 0.4,  mem: 0.2, elapsed: 3600*7+49*60, status: "idle",    claudeStatus: "thinking",  model: "opus-4-6"   },
-    { repo: "project-alpha",  org: "my-company", branch: "docs/api-update",      pr: 4, containers: 0, cpu: 0.0,  mem: 0.2, elapsed: 3600*5+13*60, status: "idle",    claudeStatus: null,        model: "sonnet-4-6" },
+    { repo: "data-pipeline", org: "my-company", branch: "docs/api-update",      pr: 4, containers: 0, cpu: 0.0,  mem: 0.2, elapsed: 3600*5+13*60, status: "idle",    claudeStatus: null,        model: "sonnet-4-6" },
   ].map((d, i) => ({
     pid: 10000 + i * 111,
     projectName: d.repo,
