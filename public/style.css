@@ -488,6 +488,8 @@ main {
   font-size: 11px;
 }
 
+.containers-summary { display: none; }
+.containers-full { display: inline; }
 .container-running {
   color: var(--green);
   opacity: 0.85;
