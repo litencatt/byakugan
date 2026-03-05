@@ -33,8 +33,13 @@ function updateHiddenColStyles() {
   COL_DEFS.forEach((c, i) => {
     if (hiddenColumns.has(c.key)) {
       const n = i + 1;
-      rules.push(`.process-table td:nth-child(${n}) { width: 0 !important; max-width: 0 !important; min-width: 0 !important; padding: 0 !important; overflow: hidden; font-size: 0 !important; color: transparent !important; }`);
-      rules.push(`.process-table td:nth-child(${n}) > * { display: none !important; }`);
+      if (c.key === "containers") {
+        rules.push(`.process-table td:nth-child(${n}) .containers-full { display: none !important; }`);
+        rules.push(`.process-table td:nth-child(${n}) .containers-summary { display: inline !important; }`);
+      } else {
+        rules.push(`.process-table td:nth-child(${n}) { width: 0 !important; max-width: 0 !important; min-width: 0 !important; padding: 0 !important; overflow: hidden; font-size: 0 !important; color: transparent !important; }`);
+        rules.push(`.process-table td:nth-child(${n}) > * { display: none !important; }`);
+      }
     }
   });
   styleEl.textContent = rules.join("\n");
@@ -274,11 +279,14 @@ function cardHtml(proc, extraProcs = []) {
 function tableRowHtml(proc, extraProcs = []) {
   const running = (proc.containers ?? []).filter(c => c.state === "running");
   const stopped = (proc.containers ?? []).filter(c => c.state !== "running");
+  const containersSummary = proc.containers && proc.containers.length > 0 && running.length > 0
+    ? `<span class="containers-summary">🐳 ${running.length}</span>`
+    : `<span class="containers-summary"></span>`;
   const containersHtml = proc.containers && proc.containers.length > 0
-    ? `🐳 <span class="containers-count">${running.length}/${proc.containers.length}</span> ${[
+    ? `${containersSummary}<span class="containers-full">🐳 <span class="containers-count">${running.length}/${proc.containers.length}</span> ${[
         ...running.map(c => `<span class="container-running">${escapeHtml(c.service)}</span>`),
         ...stopped.map(c => `<span class="container-stopped">${escapeHtml(c.service)}</span>`),
-      ].join(" ")}`
+      ].join(" ")}</span>`
     : "";
   return `
     <tr class="${proc.status}" data-pid="${proc.pid}" tabindex="0" role="button">
