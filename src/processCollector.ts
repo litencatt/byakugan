@@ -5,8 +5,27 @@ import { collectSessionData, collectRateLimitUsage } from "./collectors/sessionC
 import { collectGitInfo } from "./collectors/gitCollector.js";
 import { collectDockerContainers } from "./collectors/dockerCollector.js";
 import { collectEditorWindows } from "./collectors/editorCollector.js";
+import { EDITOR_CONFIGS } from "./editorConfig.js";
 
 const MCP_BRIDGE_PATHS = ["/mcp", "mcp-server", "mcp_server", ".mcp"];
+
+function findEditorApp(
+  pid: number,
+  procMap: Map<number, { ppid: number; command: string }>
+): "vscode" | "cursor" | null {
+  let current = pid;
+  const visited = new Set<number>();
+  while (current > 1 && !visited.has(current)) {
+    visited.add(current);
+    const proc = procMap.get(current);
+    if (!proc) break;
+    for (const config of EDITOR_CONFIGS) {
+      if (config.processPattern.test(proc.command)) return config.app;
+    }
+    current = proc.ppid;
+  }
+  return null;
+}
 
 async function enrichProcess(pid: number): Promise<Partial<ClaudeProcess> & { inputTokens: number; outputTokens: number }> {
   try {
@@ -45,8 +64,21 @@ async function enrichProcess(pid: number): Promise<Partial<ClaudeProcess> & { in
 }
 
 export async function collectProcesses(): Promise<DashboardData> {
-  const { stdout } = await execFileAsync("ps", ["-eo", "pid,ppid,pcpu,pmem,etime,stat,comm"]);
+  const [{ stdout }, { stdout: psAllOut }] = await Promise.all([
+    execFileAsync("ps", ["-eo", "pid,ppid,pcpu,pmem,etime,stat,comm"]),
+    execFileAsync("ps", ["-eo", "pid,ppid,command"]),
+  ]);
   const lines = stdout.trim().split("\n").slice(1);
+
+  const allProcMap = new Map<number, { ppid: number; command: string }>();
+  for (const line of psAllOut.trim().split("\n").slice(1)) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 3) continue;
+    const pid = parseInt(parts[0]);
+    const ppid = parseInt(parts[1]);
+    const command = parts.slice(2).join(" ");
+    allProcMap.set(pid, { ppid, command });
+  }
 
   const claudeProcesses: Array<{
     pid: number;
@@ -125,11 +157,10 @@ export async function collectProcesses(): Promise<DashboardData> {
   const nonBridge = enriched.filter(p => !p.isMcpBridge);
 
   const allEditorWindows = await collectEditorWindows();
-  const editorDirMap = new Map(allEditorWindows.map(w => [w.projectDir, w.app]));
 
   const visible = nonBridge.map(p => ({
     ...p,
-    editorApp: editorDirMap.get(p.projectDir) ?? null,
+    editorApp: findEditorApp(p.pid, allProcMap),
   }));
 
   const totalWorking = visible.filter(p => p.status === "working").length;
