@@ -162,7 +162,7 @@ let oauthCache: {
 
 // BYAKUGAN_OAUTH_CACHE_TTL_MS でOAuth成功レスポンスのキャッシュ時間を変更できる（デフォルト: 5分）
 const CACHE_TTL_SUCCESS_MS = parseInt(process.env.BYAKUGAN_OAUTH_CACHE_TTL_MS ?? String(5 * 60 * 1000));
-const CACHE_TTL_FAILURE_BASE_MS = 15 * 1000;
+const CACHE_TTL_FAILURE_BASE_MS = 10 * 60 * 1000; // 10分から開始し指数バックオフ
 const CACHE_TTL_FAILURE_MAX_MS = 60 * 60 * 1000; // 1 hour cap
 
 function fetchOAuthUsage(accessToken: string): Promise<OAuthUsageResponse> {
