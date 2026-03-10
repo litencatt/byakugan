@@ -11,7 +11,7 @@ From chakra flow (token usage) to each process's inner state (thinking / executi
 to intelligence from kilometers away (multiple repos, branches, PRs) — all gathered on one screen.
 Even tenketsu (Docker container status) never escapes its sight.
 
-Click any row or card to instantly jump to the corresponding VSCode / Cursor window.
+Click any row to instantly jump to the corresponding VSCode / Cursor window.
 **macOS only.**
 
 [日本語版 README はこちら](./README.ja.md)
@@ -33,33 +33,25 @@ Click any row or card to instantly jump to the corresponding VSCode / Cursor win
 
 ## Features
 
-### Table view (default)
-Each Claude Code process appears as a sortable row with:
+### Table view
+Each Claude Code process appears as a row with:
 - **Project** + **Dir** + **Branch** + **PR** columns
 - **Status**: live Claude state — `thinking` / `tool_use` / `executing` / `waiting`
 - **Docker containers** status (`🐳 3/4 api db redis`)
 - **CPU / MEM / Uptime** stats
 - **Column show/hide**: click any column header to toggle visibility (persisted)
 - **Star**: pin important processes to the top
+- **Drag & drop row reordering**: drag rows to reorder, persisted in localStorage
 - **Recently opened projects**: editor windows without an active Claude process, collapsible
-
-### Card view
-Each Claude Code process appears as a card showing:
-- **Repository name** + **git branch** (main title)
-- **PR title** + **PR link** with PR number (e.g. `#1234: Fix authentication bug`)
-- **Docker containers** status
-- **Editor icon** (VSCode / Cursor) in top-right corner
-- **Working/idle status** via green border highlight
 
 ### Header
 - **Token usage**: 5-hour and weekly Claude API usage (e.g. `5h:32% (2h5m)[reset:02:00] wk:35%(2d13h)`)
 - **Working/idle counts**: Live count of active and idle agents
 - **Demo mode**: Replace all project info with dummy data for screenshots
-- **View toggle**: Switch between Table and Card layout
 
 ### Other
-- **One-click IDE focus**: Click any row or card to instantly activate the corresponding VSCode / Cursor window
-- **Selection highlight**: Last clicked row/card retains highlight until another is selected
+- **One-click IDE focus**: Click any row to instantly activate the corresponding VSCode / Cursor window (rows with editor icon only)
+- **Selection highlight**: Last clicked row retains highlight until another is selected
 - **Dark / light theme**: Follows system preference
 - **SSE-based live updates**: Refreshes every 2 seconds
 - **PR info caching**: `gh pr view` is only called when `FETCH_HEAD` changes (on push/pull/fetch)
@@ -126,11 +118,9 @@ npm run test:watch # Watch mode tests
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `3000` | HTTP server port |
-| `BYAKUGAN_POLL_INTERVAL_MS` | `2000` | SSE push interval & process data cache TTL (ms) |
+| `BYAKUGAN_POLL_INTERVAL` | `2` | SSE push interval & process data cache TTL (seconds) |
 | `BYAKUGAN_OAUTH_FETCH` | `true` | Set `false` to disable OAuth usage API calls (e.g. during persistent 429) |
-| `BYAKUGAN_OAUTH_CACHE_TTL_MS` | `300000` | OAuth success response cache duration (ms) |
-| `BYAKUGAN_5H_LIMIT` | — | 5-hour output token limit for approximate usage % display |
-| `BYAKUGAN_WEEKLY_LIMIT` | — | Weekly output token limit for approximate usage % display |
+| `BYAKUGAN_OAUTH_CACHE_TTL` | `300` | OAuth success response cache duration (seconds) |
 | `BYAKUGAN_USAGE_CACHE_PATH` | `~/.claude/plugins/byakugan/.usage-cache.json` | Disk cache path for OAuth usage API responses (survives server restarts) |
 
 ## API Reference
