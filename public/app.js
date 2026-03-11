@@ -24,6 +24,7 @@ const COL_DEFS = [
   { key: "mem",        fixed: null,   label: "MEM",        stat: true,  sortable: true  },
   { key: "uptime",     fixed: null,   label: "Uptime",     stat: true,  sortable: true  },
   { key: "icons",      fixed: null,   label: "",           stat: false, sortable: false },
+  { key: "actions",   fixed: "28px", label: "",           stat: false, sortable: false },
 ];
 
 const HIDDEN_COL_W = "14px";
@@ -301,6 +302,8 @@ function tableRowHtml(proc, extraProcs = []) {
         ${proc.editorApp ? `<img src="${proc.editorApp}.svg" class="editor-icon" alt="${proc.editorApp}">` : ""}
         <img src="claude.svg" class="claude-icon" alt="Claude">
         ${extraProcs.length > 0 ? `<span class="duplicate-badge">×${extraProcs.length + 1}</span>` : ""}
+      </td>
+      <td class="tbl-actions">
         <button class="row-delete-btn" data-delete-key="${rowKey}" title="非表示">×</button>
       </td>
     </tr>
@@ -319,7 +322,8 @@ function editorRowHtml(w) {
       <td class="tbl-stat"></td>
       <td class="tbl-stat"></td>
       <td class="tbl-stat"></td>
-      <td class="tbl-icons"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"><button class="row-delete-btn" data-delete-key="${escapeHtml(w.projectDir)}" title="非表示">×</button></td>
+      <td class="tbl-icons"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"></td>
+      <td class="tbl-actions"><button class="row-delete-btn" data-delete-key="${escapeHtml(w.projectDir)}" title="非表示">×</button></td>
     </tr>
   `;
 }
@@ -407,7 +411,7 @@ function renderTable(data, grid) {
 
   const recentlyOpenedRows = dismissed.length > 0
     ? `<tr class="tbl-group-row tbl-editor-group tbl-editor-toggle" tabindex="0" role="button">
-        <td colspan="10" class="tbl-group-cell">
+        <td colspan="11" class="tbl-group-cell">
           <span class="tbl-collapse-icon">${editorSectionCollapsed ? "▶" : "▼"}</span> Recently Opened Projects
         </td>
        </tr>` +
@@ -424,7 +428,8 @@ function renderTable(data, grid) {
             <td class="tbl-stat"></td>
             <td class="tbl-stat"></td>
             <td class="tbl-stat"></td>
-            <td class="tbl-icons">${d.app ? `<img src="${escapeHtml(d.app)}.svg" class="editor-icon" alt="${escapeHtml(d.app)}">` : ""}<button class="row-restore-btn" data-restore-key="${escapeHtml(d.key)}" title="メインに戻す">↩</button></td>
+            <td class="tbl-icons">${d.app ? `<img src="${escapeHtml(d.app)}.svg" class="editor-icon" alt="${escapeHtml(d.app)}">` : ""}</td>
+            <td class="tbl-actions"><button class="row-restore-btn" data-restore-key="${escapeHtml(d.key)}" title="メインに戻す">↩</button></td>
           </tr>
         `).join(""))
     : "";
@@ -440,9 +445,9 @@ function renderTable(data, grid) {
     const cls = [c.stat && !hidden ? "tbl-stat" : "", hidden ? "col-toggled" : ""].filter(Boolean).join(" ");
     if (c.sortable) {
       const indicator = sortCol === c.key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
-      return `<th${cls ? ` class="${cls}"` : ""} data-col-sort="${c.key}" title="${c.label}">${c.label}${indicator}</th>`;
+      return `<th${cls ? ` class="${cls}"` : ""} data-col-sort="${c.key}" title="${c.label}">${c.label}${indicator}${!hidden ? `<span class="col-hide-btn" data-hide-col="${c.key}" title="列を非表示">×</span>` : ""}</th>`;
     }
-    return `<th${cls ? ` class="${cls}"` : ""} data-col-toggle="${c.key}" title="${c.label || c.key}">${c.label}</th>`;
+    return `<th${cls ? ` class="${cls}"` : ""} data-col-toggle="${c.key}" title="${c.label || c.key}">${c.label}${!hidden ? `<span class="col-hide-btn" title="列を非表示">×</span>` : ""}</th>`;
   }).join("")}</tr></thead>`;
 
   grid.innerHTML = `
@@ -471,6 +476,17 @@ function renderTable(data, grid) {
       e.stopPropagation();
       const key = th.dataset.colSort;
       if (!key) return;
+      if (hiddenColumns.has(key)) {
+        hiddenColumns.delete(key);
+        persistAndRerender("hiddenColumns", [...hiddenColumns]);
+        return;
+      }
+      if (e.shiftKey || e.target.classList.contains("col-hide-btn")) {
+        e.stopPropagation();
+        hiddenColumns.add(key);
+        persistAndRerender("hiddenColumns", [...hiddenColumns]);
+        return;
+      }
       if (sortCol === key) {
         if (sortDir === "asc") {
           sortDir = "desc";
@@ -740,3 +756,29 @@ document.getElementById("demo-toggle").addEventListener("click", function () {
   if (lastData) render(lastData);
 });
 
+
+// Theme toggle
+(function () {
+  const html = document.documentElement;
+  const btn = document.getElementById("theme-toggle");
+  const saved = localStorage.getItem("byakugan-theme");
+  if (saved) html.dataset.theme = saved;
+
+  function effectiveTheme() {
+    return html.dataset.theme ||
+      (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+  }
+
+  function syncIcon() {
+    btn.textContent = effectiveTheme() === "dark" ? "◑" : "◐";
+  }
+
+  btn.addEventListener("click", function () {
+    const next = effectiveTheme() === "dark" ? "light" : "dark";
+    html.dataset.theme = next;
+    localStorage.setItem("byakugan-theme", next);
+    syncIcon();
+  });
+
+  syncIcon();
+})();
