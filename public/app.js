@@ -509,18 +509,18 @@ function renderTable(data, grid) {
   grid.querySelectorAll("tr[data-pid]").forEach(row => {
     const pid = parseInt(row.dataset.pid);
     const hasEditor = !!row.dataset.editorApp;
-    row.addEventListener("click", () => { selectedKey = String(pid); applySelectedClass(grid); if (hasEditor) focusWindow(pid, row); });
+    row.addEventListener("click", () => { selectedKey = String(pid); applySelectedClass(grid); if (hasEditor) openInVSCode(row.dataset.rowKey); });
     row.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { selectedKey = String(pid); applySelectedClass(grid); if (hasEditor) focusWindow(pid, row); }
+      if (e.key === "Enter" || e.key === " ") { selectedKey = String(pid); applySelectedClass(grid); if (hasEditor) openInVSCode(row.dataset.rowKey); }
     });
   });
 
   grid.querySelectorAll("tr[data-dir]").forEach(row => {
     const dir = row.dataset.dir;
     const app = row.dataset.app;
-    row.addEventListener("click", () => { selectedKey = dir; applySelectedClass(grid); focusEditorWindow(dir, app, row); });
+    row.addEventListener("click", () => { selectedKey = dir; applySelectedClass(grid); openInVSCode(dir); });
     row.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { selectedKey = dir; applySelectedClass(grid); focusEditorWindow(dir, app, row); }
+      if (e.key === "Enter" || e.key === " ") { selectedKey = dir; applySelectedClass(grid); openInVSCode(dir); }
     });
   });
 
@@ -709,6 +709,14 @@ function focusEditorWindow(dir, app, cardEl) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ projectDir: dir, app }),
+  }).catch(() => {});
+}
+
+function openInVSCode(worktreePath, newWindow) {
+  fetch("/api/open-worktree", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: worktreePath, newWindow: newWindow ?? false }),
   }).catch(() => {});
 }
 
