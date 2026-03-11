@@ -604,6 +604,24 @@ main {
   text-decoration: underline;
 }
 
+.process-table thead th[data-col-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.process-table thead th[data-col-sort]:hover {
+  color: var(--accent);
+}
+
+.process-table thead th[data-col-sort].col-toggled {
+  font-size: 9px;
+  text-align: center;
+  color: var(--text-muted);
+  opacity: 0.6;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .tbl-editor-row {
   opacity: 0.6;
 }
