@@ -283,50 +283,67 @@ function tableRowHtml(proc, extraProcs = []) {
   `;
 }
 
+function editorRowHtml(w) {
+  return `
+    <tr class="tbl-editor-row" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" tabindex="0" role="button">
+      <td class="tbl-star${starredDirs.has(w.projectDir) ? " starred" : ""}" data-star-dir="${escapeHtml(w.projectDir)}">${starredDirs.has(w.projectDir) ? "★" : "☆"}</td>
+      <td class="tbl-project"><div>${escapeHtml(orgRepo(w.projectDir, w.gitCommonDir))}</div><div class="tbl-project-dir">${escapeHtml(shortenPath(w.projectDir))}</div></td>
+      <td class="tbl-branch">${w.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(w.gitBranch)}</span>` : ""}</td>
+      <td class="tbl-pr">${w.prUrl ? `<a class="pr-link" href="${escapeHtml(w.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${w.prTitle ? `#${escapeHtml(w.prUrl.split("/").pop() ?? "")}: ${escapeHtml(w.prTitle)}` : `#${escapeHtml(w.prUrl.split("/").pop() ?? "")}`}</a>` : ""}</td>
+      <td class="tbl-containers"></td>
+      <td class="tbl-status"></td>
+      <td class="tbl-stat"></td>
+      <td class="tbl-stat"></td>
+      <td class="tbl-stat"></td>
+      <td class="tbl-icons"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"><button class="row-delete-btn" data-delete-key="${escapeHtml(w.projectDir)}" title="非表示">×</button></td>
+    </tr>
+  `;
+}
+
 function renderTable(data, grid) {
   const mergedRows = mergeByDir([...data.processes]);
-  let sorted;
-  if (rowOrder && rowOrder.length > 0) {
-    const orderMap = new Map(rowOrder.map((k, i) => [k, i]));
-    sorted = [...mergedRows].sort((a, b) => {
-      const aKey = a.primary.projectDir ?? String(a.primary.pid);
-      const bKey = b.primary.projectDir ?? String(b.primary.pid);
-      const ai = orderMap.has(aKey) ? orderMap.get(aKey) : Infinity;
-      const bi = orderMap.has(bKey) ? orderMap.get(bKey) : Infinity;
-      return ai - bi;
-    });
-  } else {
-    sorted = [...mergedRows].sort((a, b) => {
-      const aStarred = starredPids.has(a.primary.pid) ? 0 : 1;
-      const bStarred = starredPids.has(b.primary.pid) ? 0 : 1;
-      if (aStarred !== bStarred) return aStarred - bStarred;
-      return orgRepo(a.primary.projectDir, a.primary.gitCommonDir)
-        .localeCompare(orgRepo(b.primary.projectDir, b.primary.gitCommonDir));
-    });
-  }
-  const tableRows = sorted
-    .filter(({ primary }) => !hiddenRows.has(primary.projectDir ?? String(primary.pid)))
-    .map(({ primary, extras }) => tableRowHtml(primary, extras)).join("");
-
-  // Editor-only windows: open in VSCode/Cursor but no Claude process running
   const claudeDirs = new Set(data.processes.map(p => p.projectDir).filter(Boolean));
-  const editorRows = (data.editorWindows ?? [])
-    .filter(w => !claudeDirs.has(w.projectDir) && !hiddenRows.has(w.projectDir))
-    .sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? ""))
-    .map(w => `
-      <tr class="tbl-editor-row" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" tabindex="0" role="button">
-        <td class="tbl-star${starredDirs.has(w.projectDir) ? " starred" : ""}" data-star-dir="${escapeHtml(w.projectDir)}">${starredDirs.has(w.projectDir) ? "★" : "☆"}</td>
-        <td class="tbl-project"><div>${escapeHtml(orgRepo(w.projectDir, w.gitCommonDir))}</div><div class="tbl-project-dir">${escapeHtml(shortenPath(w.projectDir))}</div></td>
-        <td class="tbl-branch">${w.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(w.gitBranch)}</span>` : ""}</td>
-        <td class="tbl-pr">${w.prUrl ? `<a class="pr-link" href="${escapeHtml(w.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${w.prTitle ? `#${escapeHtml(w.prUrl.split("/").pop() ?? "")}: ${escapeHtml(w.prTitle)}` : `#${escapeHtml(w.prUrl.split("/").pop() ?? "")}`}</a>` : ""}</td>
-        <td class="tbl-containers"></td>
-        <td class="tbl-status"></td>
-        <td class="tbl-stat"></td>
-        <td class="tbl-stat"></td>
-        <td class="tbl-stat"></td>
-        <td class="tbl-icons"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"><button class="row-delete-btn" data-delete-key="${escapeHtml(w.projectDir)}" title="非表示">×</button></td>
-      </tr>
-    `).join("");
+
+  const claudeVisible = [...mergedRows]
+    .filter(({ primary }) => !hiddenRows.has(primary.projectDir ?? String(primary.pid)));
+  const editorVisible = (data.editorWindows ?? [])
+    .filter(w => !claudeDirs.has(w.projectDir) && !hiddenRows.has(w.projectDir));
+
+  // 全行を統合してスター優先→ソート（rowOrderはClaudeプロセス行のタイブレーカーに使用）
+  const orderMap = rowOrder && rowOrder.length > 0
+    ? new Map(rowOrder.map((k, i) => [k, i]))
+    : null;
+
+  const allItems = [
+    ...claudeVisible.map(({ primary, extras }) => ({
+      starred: starredPids.has(primary.pid),
+      name: orgRepo(primary.projectDir, primary.gitCommonDir),
+      order: orderMap ? (orderMap.get(primary.projectDir ?? String(primary.pid)) ?? Infinity) : Infinity,
+      isEditor: false,
+      html: tableRowHtml(primary, extras),
+    })),
+    ...editorVisible.map(w => ({
+      starred: starredDirs.has(w.projectDir),
+      name: orgRepo(w.projectDir, w.gitCommonDir),
+      order: Infinity,
+      isEditor: true,
+      html: editorRowHtml(w),
+    })),
+  ];
+
+  const tableRows = allItems
+    .sort((a, b) => {
+      // スター付きを先頭に
+      if (a.starred !== b.starred) return a.starred ? -1 : 1;
+      // D&Dカスタム順（Claudeプロセス行のみ）
+      if (!a.isEditor && !b.isEditor && a.order !== b.order) return a.order - b.order;
+      // エディタ行はClaudeプロセス行の後（非スター時）
+      if (a.isEditor !== b.isEditor) return a.isEditor ? 1 : -1;
+      // 同種はアルファベット順
+      return a.name.localeCompare(b.name);
+    })
+    .map(item => item.html)
+    .join("");
 
   // Recently Opened Projects: rows dismissed via × button
   const dismissedKeys = new Set();
@@ -385,7 +402,7 @@ function renderTable(data, grid) {
     <table class="process-table">
       ${colgroupHtml}
       ${theadHtml}
-      <tbody>${tableRows}${editorRows}${recentlyOpenedRows}</tbody>
+      <tbody>${tableRows}${recentlyOpenedRows}</tbody>
     </table>
   `;
 
