@@ -2,6 +2,7 @@ let es = null;
 let demoMode = false;
 let lastData = null;
 let starredPids = new Set(JSON.parse(localStorage.getItem("starredPids") || "[]"));
+let starredDirs = new Set(JSON.parse(localStorage.getItem("starredDirs") || "[]"));
 let editorSectionCollapsed = localStorage.getItem("editorSectionCollapsed") === "true";
 let hiddenColumns = new Set(JSON.parse(localStorage.getItem("hiddenColumns") || "[]"));
 let hiddenRows = new Set(JSON.parse(localStorage.getItem("hiddenRows") || "[]"));
@@ -314,7 +315,7 @@ function renderTable(data, grid) {
     .sort((a, b) => (a.projectName ?? "").localeCompare(b.projectName ?? ""))
     .map(w => `
       <tr class="tbl-editor-row" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" tabindex="0" role="button">
-        <td></td>
+        <td class="tbl-star${starredDirs.has(w.projectDir) ? " starred" : ""}" data-star-dir="${escapeHtml(w.projectDir)}">${starredDirs.has(w.projectDir) ? "★" : "☆"}</td>
         <td class="tbl-project"><div>${escapeHtml(orgRepo(w.projectDir, w.gitCommonDir))}</div><div class="tbl-project-dir">${escapeHtml(shortenPath(w.projectDir))}</div></td>
         <td class="tbl-branch">${w.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(w.gitBranch)}</span>` : ""}</td>
         <td class="tbl-pr">${w.prUrl ? `<a class="pr-link" href="${escapeHtml(w.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${w.prTitle ? `#${escapeHtml(w.prUrl.split("/").pop() ?? "")}: ${escapeHtml(w.prTitle)}` : `#${escapeHtml(w.prUrl.split("/").pop() ?? "")}`}</a>` : ""}</td>
@@ -354,7 +355,7 @@ function renderTable(data, grid) {
         .sort((a, b) => orgRepo(a.projectDir, a.gitCommonDir).localeCompare(orgRepo(b.projectDir, b.gitCommonDir)))
         .map(d => `
           <tr class="tbl-editor-row" data-dir="${escapeHtml(d.projectDir)}" data-app="${d.app ? escapeHtml(d.app) : ""}" tabindex="0" role="button">
-            <td></td>
+            <td class="tbl-star${starredDirs.has(d.projectDir) ? " starred" : ""}" data-star-dir="${escapeHtml(d.projectDir)}">${starredDirs.has(d.projectDir) ? "★" : "☆"}</td>
             <td class="tbl-project"><div>${escapeHtml(orgRepo(d.projectDir, d.gitCommonDir))}</div><div class="tbl-project-dir">${escapeHtml(shortenPath(d.projectDir))}</div></td>
             <td class="tbl-branch">${d.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(d.gitBranch)}</span>` : ""}</td>
             <td class="tbl-pr">${d.prUrl ? `<a class="pr-link" href="${escapeHtml(d.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${d.prTitle ? `#${escapeHtml(d.prUrl.split("/").pop() ?? "")}: ${escapeHtml(d.prTitle)}` : `#${escapeHtml(d.prUrl.split("/").pop() ?? "")}`}</a>` : ""}</td>
@@ -409,6 +410,17 @@ function renderTable(data, grid) {
       if (starredPids.has(pid)) starredPids.delete(pid);
       else starredPids.add(pid);
       localStorage.setItem("starredPids", JSON.stringify([...starredPids]));
+      if (lastData) render(lastData);
+    });
+  });
+
+  grid.querySelectorAll(".tbl-star[data-star-dir]").forEach(cell => {
+    const dir = cell.dataset.starDir;
+    cell.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (starredDirs.has(dir)) starredDirs.delete(dir);
+      else starredDirs.add(dir);
+      localStorage.setItem("starredDirs", JSON.stringify([...starredDirs]));
       if (lastData) render(lastData);
     });
   });
