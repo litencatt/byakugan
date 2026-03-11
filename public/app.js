@@ -7,19 +7,21 @@ let editorSectionCollapsed = localStorage.getItem("editorSectionCollapsed") === 
 let hiddenColumns = new Set(JSON.parse(localStorage.getItem("hiddenColumns") || "[]"));
 let hiddenRows = new Set(JSON.parse(localStorage.getItem("hiddenRows") || "[]"));
 let rowOrder = JSON.parse(localStorage.getItem("rowOrder") || "null");
+let sortCol = localStorage.getItem("sortCol") || null;
+let sortDir = localStorage.getItem("sortDir") || "asc";
 let selectedKey = null;
 
 const COL_DEFS = [
-  { key: "star",       fixed: "22px", label: "",           stat: false },
-  { key: "project",    fixed: null,   label: "Project",    stat: false },
-  { key: "branch",     fixed: null,   label: "Branch",     stat: false },
-  { key: "pr",         fixed: null,   label: "PR",         stat: false },
-  { key: "containers", fixed: null,   label: "Containers", stat: false },
-  { key: "status",     fixed: null,   label: "Status",     stat: false },
-  { key: "cpu",        fixed: null,   label: "CPU",        stat: true  },
-  { key: "mem",        fixed: null,   label: "MEM",        stat: true  },
-  { key: "uptime",     fixed: null,   label: "Uptime",     stat: true  },
-  { key: "icons",      fixed: null,   label: "",           stat: false },
+  { key: "star",       fixed: "22px", label: "",           stat: false, sortable: false },
+  { key: "project",    fixed: null,   label: "Project",    stat: false, sortable: true  },
+  { key: "branch",     fixed: null,   label: "Branch",     stat: false, sortable: true  },
+  { key: "pr",         fixed: null,   label: "PR",         stat: false, sortable: false },
+  { key: "containers", fixed: null,   label: "Containers", stat: false, sortable: false },
+  { key: "status",     fixed: null,   label: "Status",     stat: false, sortable: false },
+  { key: "cpu",        fixed: null,   label: "CPU",        stat: true,  sortable: true  },
+  { key: "mem",        fixed: null,   label: "MEM",        stat: true,  sortable: true  },
+  { key: "uptime",     fixed: null,   label: "Uptime",     stat: true,  sortable: true  },
+  { key: "icons",      fixed: null,   label: "",           stat: false, sortable: false },
 ];
 
 const HIDDEN_COL_W = "14px";
@@ -234,6 +236,24 @@ function mergeByDir(procs) {
   });
 }
 
+function cellBranchHtml(gitBranch) {
+  return gitBranch
+    ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(gitBranch)}</span>`
+    : "";
+}
+
+function cellPrHtml(prUrl, prTitle) {
+  if (!prUrl) return "";
+  const num = escapeHtml(prUrl.split("/").pop() ?? "");
+  const label = prTitle ? `#${num}: ${escapeHtml(prTitle)}` : `#${num}`;
+  return `<a class="pr-link" href="${escapeHtml(prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${label}</a>`;
+}
+
+function persistAndRerender(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+  if (lastData) render(lastData);
+}
+
 function statusEmoji(proc) {
   if (proc.status === "working") {
     if (proc.claudeStatus === "thinking") return "💭";
@@ -266,8 +286,8 @@ function tableRowHtml(proc, extraProcs = []) {
     <tr class="${proc.status}" data-pid="${proc.pid}" data-row-key="${rowKey}"${proc.editorApp ? ` data-editor-app="${proc.editorApp}"` : ""} tabindex="0" role="button" draggable="true">
       <td class="tbl-star${starredPids.has(proc.pid) ? " starred" : ""}" data-star-pid="${proc.pid}">${starredPids.has(proc.pid) ? "★" : "☆"}</td>
       <td class="tbl-project"><div>${escapeHtml(orgRepo(proc.projectDir, proc.gitCommonDir))}</div><div class="tbl-project-dir">${escapeHtml(shortenPath(proc.projectDir))}</div></td>
-      <td class="tbl-branch">${proc.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(proc.gitBranch)}</span>` : ""}</td>
-      <td class="tbl-pr">${proc.prUrl ? `<a class="pr-link" href="${escapeHtml(proc.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${proc.prTitle ? `#${escapeHtml(proc.prUrl.split("/").pop() ?? "")}: ${escapeHtml(proc.prTitle)}` : `#${escapeHtml(proc.prUrl.split("/").pop() ?? "")}`}</a>` : ""}</td>
+      <td class="tbl-branch">${cellBranchHtml(proc.gitBranch)}</td>
+      <td class="tbl-pr">${cellPrHtml(proc.prUrl, proc.prTitle)}</td>
       <td class="tbl-containers">${containersHtml}</td>
       <td class="tbl-status"><span class="status-summary" style="display:none">${statusEmoji(proc)}</span><span class="status-full">${proc.claudeStatus ? `<span class="claude-status claude-status-${proc.claudeStatus}">${escapeHtml(proc.claudeStatus)}</span>` : ""}</span></td>
       <td class="tbl-stat">${proc.cpuPercent.toFixed(1)}%</td>
@@ -285,11 +305,11 @@ function tableRowHtml(proc, extraProcs = []) {
 
 function editorRowHtml(w) {
   return `
-    <tr class="tbl-editor-row" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" tabindex="0" role="button">
+    <tr class="tbl-editor-row" data-dir="${escapeHtml(w.projectDir)}" data-app="${escapeHtml(w.app)}" data-row-key="${escapeHtml(w.projectDir)}" tabindex="0" role="button" draggable="true">
       <td class="tbl-star${starredDirs.has(w.projectDir) ? " starred" : ""}" data-star-dir="${escapeHtml(w.projectDir)}">${starredDirs.has(w.projectDir) ? "★" : "☆"}</td>
       <td class="tbl-project"><div>${escapeHtml(orgRepo(w.projectDir, w.gitCommonDir))}</div><div class="tbl-project-dir">${escapeHtml(shortenPath(w.projectDir))}</div></td>
-      <td class="tbl-branch">${w.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(w.gitBranch)}</span>` : ""}</td>
-      <td class="tbl-pr">${w.prUrl ? `<a class="pr-link" href="${escapeHtml(w.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${w.prTitle ? `#${escapeHtml(w.prUrl.split("/").pop() ?? "")}: ${escapeHtml(w.prTitle)}` : `#${escapeHtml(w.prUrl.split("/").pop() ?? "")}`}</a>` : ""}</td>
+      <td class="tbl-branch">${cellBranchHtml(w.gitBranch)}</td>
+      <td class="tbl-pr">${cellPrHtml(w.prUrl, w.prTitle)}</td>
       <td class="tbl-containers"></td>
       <td class="tbl-status"></td>
       <td class="tbl-stat"></td>
@@ -321,6 +341,13 @@ function renderTable(data, grid) {
       order: orderMap ? (orderMap.get(primary.projectDir ?? String(primary.pid)) ?? Infinity) : Infinity,
       isEditor: false,
       html: tableRowHtml(primary, extras),
+      sortValues: {
+        project: orgRepo(primary.projectDir, primary.gitCommonDir),
+        branch: primary.gitBranch ?? null,
+        cpu: primary.cpuPercent,
+        mem: primary.memPercent,
+        uptime: primary.elapsedSeconds,
+      },
     })),
     ...editorVisible.map(w => ({
       starred: starredDirs.has(w.projectDir),
@@ -328,6 +355,13 @@ function renderTable(data, grid) {
       order: Infinity,
       isEditor: true,
       html: editorRowHtml(w),
+      sortValues: {
+        project: orgRepo(w.projectDir, w.gitCommonDir),
+        branch: w.gitBranch ?? null,
+        cpu: null,
+        mem: null,
+        uptime: null,
+      },
     })),
   ];
 
@@ -335,11 +369,22 @@ function renderTable(data, grid) {
     .sort((a, b) => {
       // スター付きを先頭に
       if (a.starred !== b.starred) return a.starred ? -1 : 1;
-      // D&Dカスタム順（Claudeプロセス行のみ）
-      if (!a.isEditor && !b.isEditor && a.order !== b.order) return a.order - b.order;
-      // エディタ行はClaudeプロセス行の後（非スター時）
-      if (a.isEditor !== b.isEditor) return a.isEditor ? 1 : -1;
-      // 同種はアルファベット順
+      // カラムソートが有効な場合
+      if (sortCol) {
+        const dir = sortDir === "desc" ? -1 : 1;
+        const va = a.sortValues[sortCol];
+        const vb = b.sortValues[sortCol];
+        if (va !== vb) {
+          if (va == null) return 1;
+          if (vb == null) return -1;
+          return (typeof va === "number" ? va - vb : String(va).localeCompare(String(vb))) * dir;
+        }
+      } else {
+        // D&Dカスタム順（全行に適用）
+        if (a.order !== b.order) return a.order - b.order;
+        // rowOrderにない場合: Claudeプロセス行を先に
+        if (a.isEditor !== b.isEditor) return a.isEditor ? 1 : -1;
+      }
       return a.name.localeCompare(b.name);
     })
     .map(item => item.html)
@@ -374,8 +419,8 @@ function renderTable(data, grid) {
           <tr class="tbl-editor-row" data-dir="${escapeHtml(d.projectDir)}" data-app="${d.app ? escapeHtml(d.app) : ""}" tabindex="0" role="button">
             <td class="tbl-star${starredDirs.has(d.projectDir) ? " starred" : ""}" data-star-dir="${escapeHtml(d.projectDir)}">${starredDirs.has(d.projectDir) ? "★" : "☆"}</td>
             <td class="tbl-project"><div>${escapeHtml(orgRepo(d.projectDir, d.gitCommonDir))}</div><div class="tbl-project-dir">${escapeHtml(shortenPath(d.projectDir))}</div></td>
-            <td class="tbl-branch">${d.gitBranch ? `<span class="tbl-branch-name"><img src="git-branch.svg" class="git-branch-icon" alt="branch"> ${escapeHtml(d.gitBranch)}</span>` : ""}</td>
-            <td class="tbl-pr">${d.prUrl ? `<a class="pr-link" href="${escapeHtml(d.prUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${d.prTitle ? `#${escapeHtml(d.prUrl.split("/").pop() ?? "")}: ${escapeHtml(d.prTitle)}` : `#${escapeHtml(d.prUrl.split("/").pop() ?? "")}`}</a>` : ""}</td>
+            <td class="tbl-branch">${cellBranchHtml(d.gitBranch)}</td>
+            <td class="tbl-pr">${cellPrHtml(d.prUrl, d.prTitle)}</td>
             <td class="tbl-containers"></td>
             <td class="tbl-status"></td>
             <td class="tbl-stat"></td>
@@ -395,6 +440,10 @@ function renderTable(data, grid) {
   const theadHtml = `<thead><tr>${COL_DEFS.map(c => {
     const hidden = hiddenColumns.has(c.key);
     const cls = [c.stat && !hidden ? "tbl-stat" : "", hidden ? "col-toggled" : ""].filter(Boolean).join(" ");
+    if (c.sortable) {
+      const indicator = sortCol === c.key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+      return `<th${cls ? ` class="${cls}"` : ""} data-col-sort="${c.key}" title="${c.label}">${c.label}${indicator}</th>`;
+    }
     return `<th${cls ? ` class="${cls}"` : ""} data-col-toggle="${c.key}" title="${c.label || c.key}">${c.label}</th>`;
   }).join("")}</tr></thead>`;
 
@@ -415,7 +464,28 @@ function renderTable(data, grid) {
       if (!key) return;
       if (hiddenColumns.has(key)) hiddenColumns.delete(key);
       else hiddenColumns.add(key);
-      localStorage.setItem("hiddenColumns", JSON.stringify([...hiddenColumns]));
+      persistAndRerender("hiddenColumns", [...hiddenColumns]);
+    });
+  });
+
+  grid.querySelectorAll("th[data-col-sort]").forEach(th => {
+    th.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const key = th.dataset.colSort;
+      if (!key) return;
+      if (sortCol === key) {
+        if (sortDir === "asc") {
+          sortDir = "desc";
+        } else {
+          sortCol = null;
+          sortDir = "asc";
+        }
+      } else {
+        sortCol = key;
+        sortDir = "asc";
+      }
+      localStorage.setItem("sortCol", sortCol ?? "");
+      localStorage.setItem("sortDir", sortDir);
       if (lastData) render(lastData);
     });
   });
@@ -426,8 +496,7 @@ function renderTable(data, grid) {
       e.stopPropagation();
       if (starredPids.has(pid)) starredPids.delete(pid);
       else starredPids.add(pid);
-      localStorage.setItem("starredPids", JSON.stringify([...starredPids]));
-      if (lastData) render(lastData);
+      persistAndRerender("starredPids", [...starredPids]);
     });
   });
 
@@ -437,8 +506,7 @@ function renderTable(data, grid) {
       e.stopPropagation();
       if (starredDirs.has(dir)) starredDirs.delete(dir);
       else starredDirs.add(dir);
-      localStorage.setItem("starredDirs", JSON.stringify([...starredDirs]));
-      if (lastData) render(lastData);
+      persistAndRerender("starredDirs", [...starredDirs]);
     });
   });
 
@@ -466,8 +534,7 @@ function renderTable(data, grid) {
       const key = btn.dataset.deleteKey;
       if (key) {
         hiddenRows.add(key);
-        localStorage.setItem("hiddenRows", JSON.stringify([...hiddenRows]));
-        if (lastData) render(lastData);
+        persistAndRerender("hiddenRows", [...hiddenRows]);
       }
     });
   });
@@ -478,8 +545,7 @@ function renderTable(data, grid) {
       const key = btn.dataset.restoreKey;
       if (key) {
         hiddenRows.delete(key);
-        localStorage.setItem("hiddenRows", JSON.stringify([...hiddenRows]));
-        if (lastData) render(lastData);
+        persistAndRerender("hiddenRows", [...hiddenRows]);
       }
     });
   });
