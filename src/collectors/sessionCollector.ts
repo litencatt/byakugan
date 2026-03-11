@@ -164,6 +164,7 @@ let oauthCache: {
 const CACHE_TTL_SUCCESS_MS = parseInt(process.env.BYAKUGAN_OAUTH_CACHE_TTL ?? "300") * 1000;
 const CACHE_TTL_FAILURE_BASE_MS = 10 * 60 * 1000; // 10分から開始し指数バックオフ
 const CACHE_TTL_FAILURE_MAX_MS = 60 * 60 * 1000; // 1 hour cap
+const CACHE_TTL_AUTH_ERROR_MS = 5 * 60 * 1000; // auth errorは5分待ってからリトライ
 
 function fetchOAuthUsage(accessToken: string): Promise<OAuthUsageResponse> {
   return new Promise((resolve) => {
@@ -344,7 +345,10 @@ async function getCachedOAuthUsage(): Promise<OAuthUsageResponse | null> {
         return { ok: true, data: oauthCache.result };
       }
     } else if (oauthCache.error === 'auth') {
-      // Auth errors are never cached — fall through to fetch
+      // auth errorは5分間キャッシュして頻繁なリトライを防ぐ
+      if (age < CACHE_TTL_AUTH_ERROR_MS) {
+        return { ok: false, error: 'auth' };
+      }
     } else if (oauthCache.error !== null) {
       // Use Retry-After if available and > 0, otherwise exponential backoff
       const backoff = (oauthCache.retryAfterMs !== null && oauthCache.retryAfterMs > 0)
@@ -367,8 +371,8 @@ async function getCachedOAuthUsage(): Promise<OAuthUsageResponse | null> {
   if (response.ok) {
     oauthCache = { result: response.data, error: null, fetchedAt: now, consecutiveFailures: 0, retryAfterMs: null };
   } else if (response.error === 'auth') {
-    // Do not cache auth errors
-    oauthCache = null;
+    // auth errorもキャッシュしてバックオフ（毎ポーリングのリトライを防ぐ）
+    oauthCache = { result: null, error: 'auth', fetchedAt: now, consecutiveFailures: (oauthCache?.consecutiveFailures ?? 0) + 1, retryAfterMs: null };
   } else {
     const prev = oauthCache?.consecutiveFailures ?? 0;
     const retryAfterMs = response.retryAfterMs ?? null;
@@ -382,6 +386,14 @@ async function getCachedOAuthUsage(): Promise<OAuthUsageResponse | null> {
 
   return response;
 }
+
+/** @internal テスト用: モジュールレベルのキャッシュ状態をリセット */
+export function _resetOAuthCacheForTest(): void {
+  oauthCache = null;
+  _prevOauthFetchEnabled = null;
+}
+
+export { getCachedOAuthUsage };
 
 export async function collectRateLimitUsage(): Promise<{
   fiveHourTokens: number;
