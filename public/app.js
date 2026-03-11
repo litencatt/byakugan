@@ -40,16 +40,8 @@ function updateHiddenColStyles() {
   COL_DEFS.forEach((c, i) => {
     if (hiddenColumns.has(c.key)) {
       const n = i + 1;
-      if (c.key === "containers") {
-        rules.push(`.process-table td:nth-child(${n}) .containers-full { display: none !important; }`);
-        rules.push(`.process-table td:nth-child(${n}) .containers-summary { display: inline !important; }`);
-      } else if (c.key === "status") {
-        rules.push(`.process-table td:nth-child(${n}) .status-full { display: none !important; }`);
-        rules.push(`.process-table td:nth-child(${n}) .status-summary { display: inline !important; }`);
-      } else {
-        rules.push(`.process-table td:nth-child(${n}) { padding: 0 !important; overflow: hidden; }`);
-        rules.push(`.process-table td:nth-child(${n}) > * { display: none !important; }`);
-      }
+      rules.push(`.process-table td:nth-child(${n}) { padding: 0 !important; overflow: hidden; }`);
+      rules.push(`.process-table td:nth-child(${n}) > * { display: none !important; }`);
     }
   });
   styleEl.textContent = rules.join("\n");
