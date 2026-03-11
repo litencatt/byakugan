@@ -801,6 +801,7 @@ td.tbl-actions {
   white-space: nowrap;
   text-decoration: underline;
   text-underline-offset: 2px;
+  padding: 0 1px;
 }
 
 .process-table thead th[data-col-sort] {

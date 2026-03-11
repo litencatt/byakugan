@@ -47,7 +47,7 @@ function updateHiddenColStyles() {
         rules.push(`.process-table td:nth-child(${n}) .status-full { display: none !important; }`);
         rules.push(`.process-table td:nth-child(${n}) .status-summary { display: inline !important; }`);
       } else {
-        rules.push(`.process-table td:nth-child(${n}) { width: 0 !important; max-width: 0 !important; min-width: 0 !important; padding: 0 !important; overflow: hidden; font-size: 0 !important; color: transparent !important; }`);
+        rules.push(`.process-table td:nth-child(${n}) { padding: 0 !important; overflow: hidden; }`);
         rules.push(`.process-table td:nth-child(${n}) > * { display: none !important; }`);
       }
     }
@@ -436,7 +436,7 @@ function renderTable(data, grid) {
 
   const colgroupHtml = `<colgroup>${COL_DEFS.map(c => {
     const hidden = hiddenColumns.has(c.key);
-    const w = hidden ? null : c.fixed;
+    const w = hidden ? HIDDEN_COL_W : c.fixed;
     return `<col${w ? ` style="width:${w}"` : ""}>`;
   }).join("")}</colgroup>`;
 
