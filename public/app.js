@@ -665,47 +665,17 @@ function renderUsage(usage) {
   usageEl.innerHTML = parts.join("");
 }
 
-const _faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><text y="28" font-size="28">👁️</text></svg>`;
-
 function updateFavicon(data) {
-  const processes = data?.processes ?? [];
-  const workingCount = processes.filter(p => p.status === "working").length;
+  const workingCount = (data?.processes ?? []).filter(p => p.status === "working").length;
 
-  const canvas = document.createElement("canvas");
-  canvas.width = 32;
-  canvas.height = 32;
-  const ctx = canvas.getContext("2d");
+  const badge = workingCount > 0
+    ? `<circle cx="26" cy="6" r="6" fill="#22c55e" stroke="white" stroke-width="2"/>${workingCount > 1 ? `<text x="26" y="10" font-size="8" font-weight="bold" text-anchor="middle" fill="white">${workingCount}</text>` : ""}`
+    : "";
 
-  const blob = new Blob([_faviconSvg], { type: "image/svg+xml" });
-  const url = URL.createObjectURL(blob);
-  const img = new Image();
-  img.onload = () => {
-    ctx.drawImage(img, 0, 0, 32, 32);
-    URL.revokeObjectURL(url);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><text y="28" font-size="28">👁️</text>${badge}</svg>`;
 
-    if (workingCount > 0) {
-      const bx = 25, by = 7, r = 7;
-      ctx.beginPath();
-      ctx.arc(bx, by, r, 0, Math.PI * 2);
-      ctx.fillStyle = "#22c55e";
-      ctx.fill();
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      if (workingCount > 1) {
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 9px sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(String(workingCount), bx, by);
-      }
-    }
-
-    const link = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
-    if (link) link.href = canvas.toDataURL("image/png");
-  };
-  img.src = url;
+  const link = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
+  if (link) link.href = "data:image/svg+xml," + encodeURIComponent(svg);
 }
 
 function render(rawData) {
