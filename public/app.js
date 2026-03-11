@@ -301,7 +301,6 @@ function tableRowHtml(proc, extraProcs = []) {
         ${proc.editorApp ? `<img src="${proc.editorApp}.svg" class="editor-icon" alt="${proc.editorApp}">` : ""}
         <img src="claude.svg" class="claude-icon" alt="Claude">
         ${extraProcs.length > 0 ? `<span class="duplicate-badge">×${extraProcs.length + 1}</span>` : ""}
-        <button class="row-open-vscode-btn" data-open-path="${rowKey}" title="VSCodeで開く" onclick="event.stopPropagation();openInVSCode(this.dataset.openPath)">⬡</button>
         <button class="row-delete-btn" data-delete-key="${rowKey}" title="非表示">×</button>
       </td>
     </tr>
@@ -320,7 +319,7 @@ function editorRowHtml(w) {
       <td class="tbl-stat"></td>
       <td class="tbl-stat"></td>
       <td class="tbl-stat"></td>
-      <td class="tbl-icons"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"><button class="row-open-vscode-btn" data-open-path="${escapeHtml(w.projectDir)}" title="VSCodeで開く" onclick="event.stopPropagation();openInVSCode(this.dataset.openPath)">⬡</button><button class="row-delete-btn" data-delete-key="${escapeHtml(w.projectDir)}" title="非表示">×</button></td>
+      <td class="tbl-icons"><img src="${w.app}.svg" class="editor-icon" alt="${w.app}"><button class="row-delete-btn" data-delete-key="${escapeHtml(w.projectDir)}" title="非表示">×</button></td>
     </tr>
   `;
 }
@@ -510,18 +509,18 @@ function renderTable(data, grid) {
   grid.querySelectorAll("tr[data-pid]").forEach(row => {
     const pid = parseInt(row.dataset.pid);
     const hasEditor = !!row.dataset.editorApp;
-    row.addEventListener("click", () => { selectedKey = String(pid); applySelectedClass(grid); if (hasEditor) focusWindow(pid, row); });
+    row.addEventListener("click", () => { selectedKey = String(pid); applySelectedClass(grid); if (hasEditor) openInVSCode(row.dataset.rowKey); });
     row.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { selectedKey = String(pid); applySelectedClass(grid); if (hasEditor) focusWindow(pid, row); }
+      if (e.key === "Enter" || e.key === " ") { selectedKey = String(pid); applySelectedClass(grid); if (hasEditor) openInVSCode(row.dataset.rowKey); }
     });
   });
 
   grid.querySelectorAll("tr[data-dir]").forEach(row => {
     const dir = row.dataset.dir;
     const app = row.dataset.app;
-    row.addEventListener("click", () => { selectedKey = dir; applySelectedClass(grid); focusEditorWindow(dir, app, row); });
+    row.addEventListener("click", () => { selectedKey = dir; applySelectedClass(grid); openInVSCode(dir); });
     row.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { selectedKey = dir; applySelectedClass(grid); focusEditorWindow(dir, app, row); }
+      if (e.key === "Enter" || e.key === " ") { selectedKey = dir; applySelectedClass(grid); openInVSCode(dir); }
     });
   });
 
