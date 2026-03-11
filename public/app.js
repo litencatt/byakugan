@@ -1,14 +1,16 @@
 let es = null;
 let demoMode = false;
 let lastData = null;
+let lastDataJson = null;
 let starredPids = new Set(JSON.parse(localStorage.getItem("starredPids") || "[]"));
 let starredDirs = new Set(JSON.parse(localStorage.getItem("starredDirs") || "[]"));
 let editorSectionCollapsed = localStorage.getItem("editorSectionCollapsed") === "true";
 let hiddenColumns = new Set(JSON.parse(localStorage.getItem("hiddenColumns") || "[]"));
 let hiddenRows = new Set(JSON.parse(localStorage.getItem("hiddenRows") || "[]"));
 let rowOrder = JSON.parse(localStorage.getItem("rowOrder") || "null");
-let sortCol = localStorage.getItem("sortCol") || null;
-let sortDir = localStorage.getItem("sortDir") || "asc";
+const _savedSort = JSON.parse(localStorage.getItem("sortState") || "null");
+let sortCol = _savedSort?.col ?? null;
+let sortDir = _savedSort?.dir ?? "asc";
 let selectedKey = null;
 
 const COL_DEFS = [
@@ -137,6 +139,8 @@ function connect() {
   es = new EventSource("/events");
 
   es.addEventListener("processes", (e) => {
+    if (e.data === lastDataJson) return;
+    lastDataJson = e.data;
     lastData = JSON.parse(e.data);
     render(lastData);
   });
@@ -335,34 +339,28 @@ function renderTable(data, grid) {
     : null;
 
   const allItems = [
-    ...claudeVisible.map(({ primary, extras }) => ({
-      starred: starredPids.has(primary.pid),
-      name: orgRepo(primary.projectDir, primary.gitCommonDir),
-      order: orderMap ? (orderMap.get(primary.projectDir ?? String(primary.pid)) ?? Infinity) : Infinity,
-      isEditor: false,
-      html: tableRowHtml(primary, extras),
-      sortValues: {
-        project: orgRepo(primary.projectDir, primary.gitCommonDir),
-        branch: primary.gitBranch ?? null,
-        cpu: primary.cpuPercent,
-        mem: primary.memPercent,
-        uptime: primary.elapsedSeconds,
-      },
-    })),
-    ...editorVisible.map(w => ({
-      starred: starredDirs.has(w.projectDir),
-      name: orgRepo(w.projectDir, w.gitCommonDir),
-      order: Infinity,
-      isEditor: true,
-      html: editorRowHtml(w),
-      sortValues: {
-        project: orgRepo(w.projectDir, w.gitCommonDir),
-        branch: w.gitBranch ?? null,
-        cpu: null,
-        mem: null,
-        uptime: null,
-      },
-    })),
+    ...claudeVisible.map(({ primary, extras }) => {
+      const project = orgRepo(primary.projectDir, primary.gitCommonDir);
+      return {
+        starred: starredPids.has(primary.pid),
+        name: project,
+        order: orderMap ? (orderMap.get(primary.projectDir ?? String(primary.pid)) ?? Infinity) : Infinity,
+        isEditor: false,
+        html: tableRowHtml(primary, extras),
+        sortValues: { project, branch: primary.gitBranch ?? null, cpu: primary.cpuPercent, mem: primary.memPercent, uptime: primary.elapsedSeconds },
+      };
+    }),
+    ...editorVisible.map(w => {
+      const project = orgRepo(w.projectDir, w.gitCommonDir);
+      return {
+        starred: starredDirs.has(w.projectDir),
+        name: project,
+        order: Infinity,
+        isEditor: true,
+        html: editorRowHtml(w),
+        sortValues: { project, branch: w.gitBranch ?? null, cpu: null, mem: null, uptime: null },
+      };
+    }),
   ];
 
   const tableRows = allItems
@@ -484,9 +482,7 @@ function renderTable(data, grid) {
         sortCol = key;
         sortDir = "asc";
       }
-      localStorage.setItem("sortCol", sortCol ?? "");
-      localStorage.setItem("sortDir", sortDir);
-      if (lastData) render(lastData);
+      persistAndRerender("sortState", { col: sortCol, dir: sortDir });
     });
   });
 
@@ -570,8 +566,14 @@ function renderTable(data, grid) {
 function setupDragAndDrop(grid) {
   const rows = [...grid.querySelectorAll("tr[data-row-key]")];
   let dragSrcKey = null;
+  let lastIndicatorRow = null;
 
-  const clearIndicators = () => rows.forEach(r => r.classList.remove("drag-over-above", "drag-over-below"));
+  const clearIndicators = () => {
+    if (lastIndicatorRow) {
+      lastIndicatorRow.classList.remove("drag-over-above", "drag-over-below");
+      lastIndicatorRow = null;
+    }
+  };
 
   rows.forEach(row => {
     row.addEventListener("dragstart", (e) => {
@@ -596,6 +598,7 @@ function setupDragAndDrop(grid) {
       } else {
         row.classList.add("drag-over-below");
       }
+      lastIndicatorRow = row;
     });
 
     row.addEventListener("dragleave", () => clearIndicators());
