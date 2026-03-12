@@ -160,6 +160,10 @@ let oauthCache: {
   retryAfterMs: number | null;
 } | null = null;
 
+// In-flight request deduplication: prevents multiple simultaneous API calls
+// when cache is empty (e.g. multiple SSE clients connecting at the same time)
+let _inFlightOAuthRequest: Promise<OAuthUsageResponse> | null = null;
+
 // BYAKUGAN_OAUTH_CACHE_TTL でOAuth成功レスポンスのキャッシュ時間を変更できる（デフォルト: 300秒）
 const CACHE_TTL_SUCCESS_MS = parseInt(process.env.BYAKUGAN_OAUTH_CACHE_TTL ?? "300") * 1000;
 const CACHE_TTL_FAILURE_BASE_MS = 10 * 60 * 1000; // 10分から開始し指数バックオフ
@@ -366,7 +370,13 @@ async function getCachedOAuthUsage(): Promise<OAuthUsageResponse | null> {
   const token = getOAuthToken();
   if (!token) return null;
 
-  const response = await fetchOAuthUsage(token);
+  // Deduplicate concurrent requests: reuse in-flight promise if one is already running
+  if (!_inFlightOAuthRequest) {
+    _inFlightOAuthRequest = fetchOAuthUsage(token).finally(() => {
+      _inFlightOAuthRequest = null;
+    });
+  }
+  const response = await _inFlightOAuthRequest;
 
   if (response.ok) {
     oauthCache = { result: response.data, error: null, fetchedAt: now, consecutiveFailures: 0, retryAfterMs: null };
