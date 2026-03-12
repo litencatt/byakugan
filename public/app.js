@@ -759,8 +759,7 @@ function focusWindow(pid, cardEl) {
 
 document.getElementById("process-grid").classList.add("list");
 
-fetch("/api/config").then(r => r.json()).then(cfg => { homeDir = cfg.homeDir ?? null; }).catch(() => {});
-connect();
+fetch("/api/config").then(r => r.json()).then(cfg => { homeDir = cfg.homeDir ?? null; }).catch(() => {}).finally(() => connect());
 updateHiddenColStyles();
 
 document.getElementById("demo-toggle").addEventListener("click", function () {
