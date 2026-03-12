@@ -341,6 +341,7 @@ function renderTable(data, grid) {
       return {
         starred: starredPids.has(primary.pid),
         name: project,
+        projectDir: primary.projectDir ?? "",
         order: orderMap ? (orderMap.get(primary.projectDir ?? String(primary.pid)) ?? Infinity) : Infinity,
         isEditor: false,
         html: tableRowHtml(primary, extras),
@@ -352,6 +353,7 @@ function renderTable(data, grid) {
       return {
         starred: starredDirs.has(w.projectDir),
         name: project,
+        projectDir: w.projectDir ?? "",
         order: orderMap ? (orderMap.get(w.projectDir) ?? Infinity) : Infinity,
         isEditor: true,
         html: editorRowHtml(w),
@@ -380,7 +382,7 @@ function renderTable(data, grid) {
         // rowOrderにない場合: Claudeプロセス行を先に
         if (a.isEditor !== b.isEditor) return a.isEditor ? 1 : -1;
       }
-      return a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name) || a.projectDir.localeCompare(b.projectDir);
     })
     .map(item => item.html)
     .join("");
