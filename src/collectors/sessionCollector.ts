@@ -370,28 +370,33 @@ async function getCachedOAuthUsage(): Promise<OAuthUsageResponse | null> {
   const token = getOAuthToken();
   if (!token) return null;
 
-  // Deduplicate concurrent requests: reuse in-flight promise if one is already running
-  if (!_inFlightOAuthRequest) {
+  // Deduplicate concurrent requests: reuse in-flight promise if one is already running.
+  // Only the caller that creates the promise (isOwner=true) updates the cache;
+  // other concurrent callers just await the same promise and return.
+  const isOwner = !_inFlightOAuthRequest;
+  if (isOwner) {
     _inFlightOAuthRequest = fetchOAuthUsage(token).finally(() => {
       _inFlightOAuthRequest = null;
     });
   }
-  const response = await _inFlightOAuthRequest;
+  const response = await _inFlightOAuthRequest!;
 
-  if (response.ok) {
-    oauthCache = { result: response.data, error: null, fetchedAt: now, consecutiveFailures: 0, retryAfterMs: null };
-  } else if (response.error === 'auth') {
-    // auth errorもキャッシュしてバックオフ（毎ポーリングのリトライを防ぐ）
-    oauthCache = { result: null, error: 'auth', fetchedAt: now, consecutiveFailures: (oauthCache?.consecutiveFailures ?? 0) + 1, retryAfterMs: null };
-  } else {
-    const prev = oauthCache?.consecutiveFailures ?? 0;
-    const retryAfterMs = response.retryAfterMs ?? null;
-    oauthCache = { result: null, error: response.error, fetchedAt: now, consecutiveFailures: prev + 1, retryAfterMs };
-  }
+  if (isOwner) {
+    if (response.ok) {
+      oauthCache = { result: response.data, error: null, fetchedAt: now, consecutiveFailures: 0, retryAfterMs: null };
+    } else if (response.error === 'auth') {
+      // auth errorもキャッシュしてバックオフ（毎ポーリングのリトライを防ぐ）
+      oauthCache = { result: null, error: 'auth', fetchedAt: now, consecutiveFailures: (oauthCache?.consecutiveFailures ?? 0) + 1, retryAfterMs: null };
+    } else {
+      const prev = oauthCache?.consecutiveFailures ?? 0;
+      const retryAfterMs = response.retryAfterMs ?? null;
+      oauthCache = { result: null, error: response.error, fetchedAt: now, consecutiveFailures: prev + 1, retryAfterMs };
+    }
 
-  // Persist to disk (except auth errors which are not cached)
-  if (oauthCache) {
-    void writeDiskCache(oauthCache);
+    // Persist to disk (except auth errors which are not cached)
+    if (oauthCache) {
+      void writeDiskCache(oauthCache);
+    }
   }
 
   return response;
@@ -401,6 +406,7 @@ async function getCachedOAuthUsage(): Promise<OAuthUsageResponse | null> {
 export function _resetOAuthCacheForTest(): void {
   oauthCache = null;
   _prevOauthFetchEnabled = null;
+  _inFlightOAuthRequest = null;
 }
 
 export { getCachedOAuthUsage };
