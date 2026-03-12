@@ -9,6 +9,11 @@ import { EDITOR_CONFIGS } from "./editorConfig.js";
 
 const MCP_BRIDGE_PATHS = ["/mcp", "mcp-server", "mcp_server", ".mcp"];
 
+// BYAKUGAN_PROCESS_NAMES でモニタリング対象のプロセス名を変更できる（カンマ区切り、デフォルト: "claude"）
+const MONITORED_PROCESS_NAMES = new Set(
+  (process.env.BYAKUGAN_PROCESS_NAMES ?? "claude").split(",").map(s => s.trim()).filter(Boolean)
+);
+
 const DEBUG = process.env.BYAKUGAN_DEBUG === "true";
 function dbg(phase: string, ms: number, extra = "") {
   if (DEBUG) console.log(`[collector] ${phase}: ${ms}ms${extra ? " " + extra : ""}`);
@@ -106,7 +111,7 @@ export async function collectProcesses(): Promise<DashboardData> {
     if (parts.length < 7) continue;
     const [pidStr, ppidStr, cpuStr, memStr, etime, stat, ...commParts] = parts;
     const comm = commParts.join(" ");
-    if (comm === "claude") {
+    if (MONITORED_PROCESS_NAMES.has(comm)) {
       claudeProcesses.push({
         pid: parseInt(pidStr),
         ppid: parseInt(ppidStr),
