@@ -36,7 +36,7 @@
 - **Project**: `org/repo` + パス（2行目）
 - **Branch**: git ブランチ名
 - **PR**: PR リンクとタイトル
-- **Containers**: Docker コンテナの状態（`🐳 3/4 api db redis`）
+- **Containers**: Docker コンテナの状態（`🐳 3/4 api db redis`）— `BYAKUGAN_DOCKER=true` でオプトイン
 - **Status**: claudeStatus バッジ（hide 時は絵文字で表示）
 - **CPU / MEM / Uptime**: プロセス統計
 - 右端に**エディタアイコン**（VSCode / Cursor）
@@ -123,6 +123,13 @@ npm run test:watch # テスト監視モード
 | `BYAKUGAN_OAUTH_FETCH` | `true` | `false` で OAuth 使用量 API を無効化（429 頻発時などに有用） |
 | `BYAKUGAN_OAUTH_CACHE_TTL` | `300` | OAuth 成功レスポンスのキャッシュ時間（秒） |
 | `BYAKUGAN_USAGE_CACHE_PATH` | `~/.claude/plugins/byakugan/.usage-cache.json` | OAuth 使用量 API レスポンスのディスクキャッシュ保存先（サーバー再起動後も維持） |
+| `BYAKUGAN_DOCKER` | *（無効）* | `true` で Docker Compose コンテナ状態検出を有効化 |
+| `BYAKUGAN_PROCESS_NAMES` | `claude` | モニタリング対象プロセス名（カンマ区切りで複数指定可、例: `claude,codex`） |
+| `BYAKUGAN_OAUTH_API_HOSTNAME` | `api.anthropic.com` | OAuth API ホスト名 |
+| `BYAKUGAN_PROJECTS_DIR` | `~/.claude/projects` | Claude プロジェクトディレクトリのパス |
+| `BYAKUGAN_CREDENTIALS_PATH` | `~/.claude/.credentials.json` | OAuth 認証ファイルのパス |
+| `BYAKUGAN_VSCODE_STORAGE_PATH` | *（macOS デフォルト）* | VSCode グローバルストレージパスの上書き |
+| `BYAKUGAN_CURSOR_STORAGE_PATH` | *（macOS デフォルト）* | Cursor グローバルストレージパスの上書き |
 
 ## API リファレンス
 

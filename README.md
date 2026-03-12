@@ -37,7 +37,7 @@ Click any row to instantly jump to the corresponding VSCode / Cursor window.
 Each Claude Code process appears as a row with:
 - **Project** + **Dir** + **Branch** + **PR** columns
 - **Status**: live Claude state — `thinking` / `tool_use` / `executing` / `waiting`
-- **Docker containers** status (`🐳 3/4 api db redis`)
+- **Docker containers** status (`🐳 3/4 api db redis`) — opt-in via `BYAKUGAN_DOCKER=true`
 - **CPU / MEM / Uptime** stats
 - **Column show/hide**: click any column header to toggle visibility (persisted)
 - **Star**: pin important processes to the top
@@ -122,6 +122,13 @@ npm run test:watch # Watch mode tests
 | `BYAKUGAN_OAUTH_FETCH` | `true` | Set `false` to disable OAuth usage API calls (e.g. during persistent 429) |
 | `BYAKUGAN_OAUTH_CACHE_TTL` | `300` | OAuth success response cache duration (seconds) |
 | `BYAKUGAN_USAGE_CACHE_PATH` | `~/.claude/plugins/byakugan/.usage-cache.json` | Disk cache path for OAuth usage API responses (survives server restarts) |
+| `BYAKUGAN_DOCKER` | *(disabled)* | Set `true` to enable Docker Compose container status detection |
+| `BYAKUGAN_PROCESS_NAMES` | `claude` | Comma-separated list of process names to monitor (e.g. `claude,codex`) |
+| `BYAKUGAN_OAUTH_API_HOSTNAME` | `api.anthropic.com` | OAuth API hostname |
+| `BYAKUGAN_PROJECTS_DIR` | `~/.claude/projects` | Claude projects directory path |
+| `BYAKUGAN_CREDENTIALS_PATH` | `~/.claude/.credentials.json` | OAuth credentials file path |
+| `BYAKUGAN_VSCODE_STORAGE_PATH` | *(macOS default)* | Override VSCode global storage path |
+| `BYAKUGAN_CURSOR_STORAGE_PATH` | *(macOS default)* | Override Cursor global storage path |
 
 ## API Reference
 
