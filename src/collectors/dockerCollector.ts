@@ -50,21 +50,32 @@ async function getWorktreeDirs(projectDir: string): Promise<string[]> {
 async function collectContainersFromFile(composeFile: string): Promise<DockerContainer[]> {
   try {
     const { stdout } = await execFileAsync(
-      "docker", ["compose", "-f", composeFile, "ps", "--format", "json"],
+      "docker", ["compose", "-f", composeFile, "ps", "--all", "--format", "json"],
       { timeout: 3000 }
     );
-    const lines = stdout.trim().split("\n").filter(Boolean);
+    const trimmed = stdout.trim();
+    if (!trimmed) return [];
+
+    // Docker Compose v2.21+ outputs a JSON array; older versions output NDJSON
     const containers: DockerContainer[] = [];
-    for (const line of lines) {
-      try {
-        const obj = JSON.parse(line);
-        containers.push({
-          service: obj.Service ?? "",
-          name: obj.Name ?? "",
-          state: (obj.State ?? "").toLowerCase(),
-          status: obj.Status ?? "",
-        });
-      } catch { /* skip malformed */ }
+    const parseItem = (obj: Record<string, unknown>) => {
+      containers.push({
+        service: String(obj.Service ?? ""),
+        name: String(obj.Name ?? ""),
+        state: String(obj.State ?? "").toLowerCase(),
+        status: String(obj.Status ?? ""),
+      });
+    };
+
+    if (trimmed.startsWith("[")) {
+      // JSON array format
+      const arr = JSON.parse(trimmed) as Array<Record<string, unknown>>;
+      for (const obj of arr) parseItem(obj);
+    } else {
+      // NDJSON format
+      for (const line of trimmed.split("\n").filter(Boolean)) {
+        try { parseItem(JSON.parse(line) as Record<string, unknown>); } catch { /* skip malformed */ }
+      }
     }
     return containers;
   } catch {
